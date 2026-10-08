@@ -1810,3 +1810,37 @@ function showDone(data, v) {
   }
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
+
+// --- Auto-advance Guide UI Feature ---
+document.addEventListener('DOMContentLoaded', () => {
+  const form = document.querySelector('form');
+  if (!form) return;
+
+  function advanceToNextField(currentElement) {
+    if (currentElement.checkValidity && !currentElement.checkValidity()) return;
+    const fields = Array.from(document.querySelectorAll('.field:not([hidden])'));
+    const currentWrap = currentElement.closest('.field');
+    if (!currentWrap) return;
+    
+    const currentIndex = fields.indexOf(currentWrap);
+    if (currentIndex > -1 && currentIndex < fields.length - 1) {
+      const nextField = fields[currentIndex + 1];
+      nextField.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const input = nextField.querySelector('input:not([type=hidden]),select,textarea');
+      if (input) input.focus({ preventScroll: true });
+    }
+  }
+
+  form.addEventListener('change', (e) => {
+    if (e.target.tagName === 'SELECT' || (e.target.tagName === 'INPUT' && (e.target.type === 'radio' || e.target.type === 'checkbox'))) {
+      advanceToNextField(e.target);
+    }
+  });
+
+  form.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && e.target.tagName === 'INPUT' && ['text', 'email', 'tel', 'number'].includes(e.target.type)) {
+      e.preventDefault();
+      advanceToNextField(e.target);
+    }
+  });
+});
