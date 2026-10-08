@@ -1,6 +1,6 @@
 import { requireStaff } from '../lib/staff-auth.js';
-import { sql, dbConfigured } from '../lib/db.js';
-import { FORM, employeeQuestion, AGREEMENT } from '../lib/form-schema.js';
+import { sql, dbConfigured, ensureSchema } from '../lib/db.js';
+import { FORM, employeeQuestion, AGREEMENT, PRIVACY } from '../lib/form-schema.js';
 import { normaliseReference } from '../lib/reference.js';
 
 /**
@@ -11,6 +11,7 @@ import { normaliseReference } from '../lib/reference.js';
  *   GET /api/staff-data?q=juan           -> name / email / contact search
  *   GET /api/staff-data?type=employee    -> SISC employees on salary deduction
  *   GET /api/staff-data?type=public      -> everybody else
+ *   GET /api/staff-data?field=Race+category&value=5K   -> one answer, exactly
  *   GET /api/staff-data?limit=200&offset=50
  *
  * Every response is behind requireStaff, because these rows contain contact
@@ -53,7 +54,16 @@ export default async function handler(req, res) {
   const empLabel = employee?.label ?? '';
   const empValue = employee?.value ?? '';
 
+  // The figures at the top of the dashboard filter the table when clicked.
+  // That is a match on one question's answer, not a search: "Alumni" as a
+  // school must not also find everyone in the Alumni Department. Only a
+  // question the form actually has can be named.
+  const fieldLabel = String(req.query?.field ?? '');
+  const fieldValue = String(req.query?.value ?? '');
+  const anyField = !FORM.fields.some((f) => f.label === fieldLabel);
+
   try {
+    await ensureSchema();
     const db = sql();
     let rows;
     let matchedReference = null;
@@ -66,17 +76,20 @@ export default async function handler(req, res) {
         rows = await db`
           SELECT reference, created_at, full_name, email, proof_url,
                  answers, waiver_agreed, waiver_agreed_at,
+                 privacy_agreed, privacy_agreed_at,
                  sheet_synced, sheet_error, email_sent, email_error
             FROM registrations
            WHERE reference = ${ref}
              AND (${allTypes}::boolean
-                  OR COALESCE(answers ->> ${empLabel} = ${empValue}, FALSE) = ${wantEmployee}::boolean)`;
+                  OR COALESCE(answers ->> ${empLabel} = ${empValue}, FALSE) = ${wantEmployee}::boolean)
+             AND (${anyField}::boolean OR COALESCE(answers ->> ${fieldLabel}, '') = ${fieldValue})`;
       }
       if (!rows || rows.length === 0) {
         const like = `%${q.replace(/[%_]/g, (c) => '\\' + c)}%`;
         rows = await db`
           SELECT reference, created_at, full_name, email, proof_url,
                  answers, waiver_agreed, waiver_agreed_at,
+                 privacy_agreed, privacy_agreed_at,
                  sheet_synced, sheet_error, email_sent, email_error
             FROM registrations
            WHERE (reference ILIKE ${like}
@@ -85,18 +98,21 @@ export default async function handler(req, res) {
                OR answers::text ILIKE ${like})
              AND (${allTypes}::boolean
                   OR COALESCE(answers ->> ${empLabel} = ${empValue}, FALSE) = ${wantEmployee}::boolean)
+             AND (${anyField}::boolean OR COALESCE(answers ->> ${fieldLabel}, '') = ${fieldValue})
            ORDER BY created_at DESC
-           LIMIT ${limit}`;
+           LIMIT ${limit} OFFSET ${offset}`;
         matchedReference = null;
       }
     } else {
       rows = await db`
         SELECT reference, created_at, full_name, email, proof_url,
                answers, waiver_agreed, waiver_agreed_at,
+               privacy_agreed, privacy_agreed_at,
                sheet_synced, sheet_error, email_sent, email_error
           FROM registrations
          WHERE (${allTypes}::boolean
                 OR COALESCE(answers ->> ${empLabel} = ${empValue}, FALSE) = ${wantEmployee}::boolean)
+             AND (${anyField}::boolean OR COALESCE(answers ->> ${fieldLabel}, '') = ${fieldValue})
          ORDER BY created_at DESC
          LIMIT ${limit} OFFSET ${offset}`;
     }
@@ -120,7 +136,10 @@ export default async function handler(req, res) {
     const shirtField = FORM.fields.find((f) => /shirt|size/i.test(f.label));
     const schoolField = FORM.fields.find((f) => /school|affiliation/i.test(f.label));
     const breakdown = {};
-    for (const [key, field] of [['category', categoryField], ['shirt', shirtField], ['school', schoolField]]) {
+    // Only needed where the figures are drawn. The export pages through
+    // hundreds of rows and has no use for six extra queries on every page.
+    const wanted = req.query?.stats === '0' ? [] : [['category', categoryField], ['shirt', shirtField], ['school', schoolField]];
+    for (const [key, field] of wanted) {
       if (!field) { breakdown[key] = null; continue; }
       const counts = await db`
         SELECT answers ->> ${field.label} AS value, count(*)::int AS n
@@ -147,6 +166,8 @@ export default async function handler(req, res) {
       // it with the answers, so it travels with them.
       fields: FORM.fields.map((f) => ({ label: f.label, type: f.type })),
       agreement: AGREEMENT,
+      privacy: PRIVACY,
+      filter: anyField ? null : { field: fieldLabel, value: fieldValue },
       breakdown,
       rows,
     });

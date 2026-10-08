@@ -20,13 +20,10 @@ token-run.log
 tools/
 assets-src/
 
-# Supplier artwork kept for reference. The measurements off the two size
-# charts live in lib/form-schema.js and the page draws the chart itself, so
-# nothing serves these — they are 2 MB of upload that no visitor can reach.
-reference_shirt.png
-Kidz_shirt_size.png
-image.png
-Unisex_size.png
+# Supplier artwork kept for reference now lives in assets-src/reference/,
+# which the line above already keeps out of the deployment. The tests are
+# not needed at runtime either.
+test/
 
 node_modules
 .git

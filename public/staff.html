@@ -11,9 +11,7 @@
 <link rel="stylesheet" href="/staff.css">
 
   <!-- Vercel Web Analytics -->
-  <script>
-    window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
-  </script>
+  <script src="/va.js"></script>
   <script defer src="/_vercel/insights/script.js"></script>
 </head>
 <body class="staff">
@@ -120,7 +118,8 @@
         <p>
           Permanently deletes every registration &mdash; employees and
           non-employees alike. A CSV backup downloads first, and you will be
-          asked to type a phrase to confirm. There is no undo.
+          asked to type a phrase to confirm. There is no undo. The Google
+          Sheet and the receipts in Google Drive are left as they are.
         </p>
       </div>
       <button type="button" class="btn-danger" id="reset">Reset all data</button>
@@ -162,6 +161,11 @@
   </div>
   <div class="modal-body">
     <div class="notice warn" id="reset-scope">Checking what is in the table&hellip;</div>
+    <p class="reset-step-s">
+      Only the registrations here are deleted. Rows already in the Google Sheet
+      and receipts already in Google Drive stay where they are &mdash; clear
+      those by hand if this is a fresh start.
+    </p>
 
     <ol class="reset-steps">
       <li class="reset-step">

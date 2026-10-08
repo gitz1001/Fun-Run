@@ -7,7 +7,7 @@
     "lib": "lib"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node --test \"test/*.test.js\"",
     "dev": "node tools/dev-server.js",
     "token": "node tools/get-refresh-token.js",
     "schema": "node tools/fetch-form-schema.js",
@@ -17,6 +17,7 @@
     "db:init": "node tools/db-init.js",
     "sheet:init": "node tools/sheet-init.js",
     "replay": "node tools/replay.js",
+    "sweep": "node tools/sweep-uploads.js",
     "push-env": "node tools/push-env.js"
   },
   "keywords": [],
@@ -26,7 +27,7 @@
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
     "@vercel/functions": "^3.9.5",
-    "nodemailer": "^9.1.0"
+    "nodemailer": "^10.0.16"
   },
   "engines": {
     "node": ">=22.x"

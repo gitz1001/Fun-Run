@@ -1,26 +1,22 @@
-import { FORM, validate, isActive, AGREEMENT, PRIVACY, waiverState, privacyState } from '../lib/form-schema.js';
+import { randomBytes } from 'node:crypto';
+import {
+  FORM, validate, isActive, cleanAnswer, AGREEMENT, PRIVACY, waiverState, privacyState,
+} from '../lib/form-schema.js';
 import { appendRegistration } from '../lib/sheets.js';
 import { sendConfirmation, explainMailError, missingEnv } from '../lib/mailer.js';
 import { confirmationHtml, confirmationText } from '../lib/template.js';
-import { deleteDriveFile } from './drive-upload.js';
-import { dbConfigured, saveRegistration, markSheetSynced, markEmailSent } from '../lib/db.js';
+import {
+  dbConfigured, ensureSchema, saveRegistration, markSheetSynced, markEmailSent,
+  holdUpload, settleUpload, releaseUpload,
+} from '../lib/db.js';
 import { afterResponse } from '../lib/after-response.js';
+import { receiptFileId, receiptLink } from '../lib/receipts.js';
+import { limited, clientIp } from '../lib/rate-limit.js';
 
 const APP_NAME = process.env.APP_NAME || 'Southville Run For A Cause 2026';
 
-// Very small in-memory rate limit. Serverless instances are recycled, so this
-// only blunts bursts against a warm instance — it is not a hard guarantee.
-const hits = new Map();
-function rateLimited(ip) {
-  const now = Date.now();
-  const windowMs = 60_000;
-  const max = 5;
-  const rec = hits.get(ip)?.filter((t) => now - t < windowMs) ?? [];
-  rec.push(now);
-  hits.set(ip, rec);
-  if (hits.size > 500) hits.clear();
-  return rec.length > max;
-}
+// Generous on purpose: a whole school registers from behind one campus address.
+const SUBMISSIONS = { windowSec: 60, max: 20 };
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -28,17 +24,23 @@ export default async function handler(req, res) {
     return res.status(405).json({ ok: false, error: 'POST only' });
   }
 
-  const ip = (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || 'unknown';
-  if (rateLimited(ip)) {
+  const ip = clientIp(req);
+  if (await limited('register', ip, SUBMISSIONS)) {
     return res.status(429).json({ ok: false, error: 'Too many submissions. Please wait a minute.' });
   }
 
-  const body = typeof req.body === 'string' ? safeJson(req.body) : req.body || {};
+  const raw = typeof req.body === 'string' ? safeJson(req.body) : req.body || {};
+  const sent = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
 
   // Honeypot: real people leave this hidden field empty.
-  if (typeof body._hp === 'string' && body._hp.trim() !== '') {
+  if (typeof sent._hp === 'string' && sent._hp.trim() !== '') {
     return res.status(200).json({ ok: true, ref: 'IGNORED' });
   }
+
+  // Every answer is cleaned once, here, and everything below — validation,
+  // the conditional rules, the database — reads the cleaned copy.
+  const body = { ...sent };
+  for (const f of FORM.fields) body[f.name] = cleanAnswer(f, sent[f.name]);
 
   const errors = validate(body);
   if (errors.length) {
@@ -51,30 +53,9 @@ export default async function handler(req, res) {
   // or email — and an employee's registration never carries a receipt.
   const values = {};
   for (const f of FORM.fields) {
-    const v = body[f.name];
-    values[f.name] = isActive(f, body) && typeof v === 'string' ? v.trim() : '';
+    values[f.name] = isActive(f, body) ? body[f.name] : '';
   }
 
-  const when = new Date().toLocaleString('en-PH', {
-    dateStyle: 'long',
-    timeStyle: 'short',
-    timeZone: 'Asia/Manila',
-  });
-  // validate() has already required an explicit waiver acceptance.
-  const agreed = waiverState(body);
-
-  // Carried as an answer as well as a column: that is what puts it in the
-  // sheet, the confirmation email and the dashboard's detail view. Left blank
-  // when nothing was stated, so the row never claims an acceptance it did not
-  // receive.
-  const answers = FORM.fields.map((f) => [f.label, values[f.name]]);
-  answers.push([AGREEMENT.label, agreed === true ? AGREEMENT.agreed : '']);
-  answers.push([PRIVACY.label, privacyState(body) === true ? PRIVACY.agreed : '']);
-  const labelled = Object.fromEntries(answers);
-
-  // --- 1. record the registration — the database decides ------------
-  // Postgres is the source of truth. If this fails, nobody is registered,
-  // so nothing is emailed and the uploaded receipt is cleaned up.
   if (!dbConfigured()) {
     console.error('[register] no DATABASE_URL configured');
     return res.status(503).json({
@@ -83,29 +64,78 @@ export default async function handler(req, res) {
     });
   }
 
-  let ref;
+  // --- 1. the receipt has to be one this app uploaded ----------------
+  // The page sends a Drive file id. It is taken only if the uploads table
+  // lists it and no other registration has it; what gets stored is a link
+  // the server builds itself. Nothing the browser sent is used as a link,
+  // and nothing here ever deletes from Drive.
+  const hold = `hold:${randomBytes(9).toString('hex')}`;
+  const held = [];
   try {
-    ({ reference: ref } = await saveRegistration({ values, labelled, ip, agreed }));
-  } catch (err) {
-    console.error('[register] database write failed:', err.message);
-
-    // The receipt was uploaded before this point, so it is now orphaned.
+    await ensureSchema();
     for (const f of FORM.fields) {
-      if (f.type === 'file' && values[f.name]) {
-        const gone = await deleteDriveFile(values[f.name]);
-        console.log(`[register] orphaned upload ${gone ? 'removed' : 'left behind'}: ${values[f.name]}`);
+      if (f.type !== 'file' || !values[f.name]) continue;
+      const fileId = receiptFileId(values[f.name]);
+      if (!fileId || !(await holdUpload(fileId, hold))) {
+        await releaseAll(held, hold);
+        return res.status(422).json({
+          ok: false,
+          errors: [`${f.label} must be uploaded before submitting.`],
+          uploadCleared: true,
+        });
       }
+      held.push(fileId);
+      values[f.name] = receiptLink(req, fileId);
     }
-
+  } catch (err) {
+    console.error('[register] could not check the upload:', err.message);
+    await releaseAll(held, hold);
     return res.status(502).json({
       ok: false,
       error: 'We could not record your registration, so no email was sent. Please try again.',
-      detail: err.message,
-      uploadCleared: true,
     });
   }
 
-  // --- 2. answer the runner now -------------------------------------
+  const when = new Date().toLocaleString('en-PH', {
+    dateStyle: 'long',
+    timeStyle: 'short',
+    timeZone: 'Asia/Manila',
+  });
+  // validate() has already required both confirmations.
+  const agreed = waiverState(body);
+  const privacy = privacyState(body);
+
+  // Carried as an answer as well as a column: that is what puts it in the
+  // sheet, the confirmation email and the dashboard's detail view. Left blank
+  // when nothing was stated, so the row never claims an acceptance it did not
+  // receive.
+  const answers = FORM.fields.map((f) => [f.label, values[f.name]]);
+  answers.push([AGREEMENT.label, agreed === true ? AGREEMENT.agreed : '']);
+  answers.push([PRIVACY.label, privacy === true ? PRIVACY.agreed : '']);
+  const labelled = Object.fromEntries(answers);
+
+  // --- 2. record the registration — the database decides -------------
+  // Postgres is the source of truth. If this fails, nobody is registered and
+  // nothing is emailed. The receipt is let go rather than deleted, so the
+  // runner can press submit again without attaching it a second time.
+  let ref;
+  try {
+    ({ reference: ref } = await saveRegistration({ values, labelled, ip, agreed, privacy }));
+  } catch (err) {
+    console.error('[register] database write failed:', err.message);
+    await releaseAll(held, hold);
+    return res.status(502).json({
+      ok: false,
+      error: 'We could not record your registration, so no email was sent. Please try again.',
+    });
+  }
+
+  for (const fileId of held) {
+    await settleUpload(fileId, hold, ref)
+      .catch((err) => console.error(`[register] ${ref}: could not settle upload ${fileId}:`, err.message));
+  }
+
+  // --- 3. answer the runner now --------------------------------------
   // They are registered the moment the database write succeeded. Making them
   // wait ~10s while we talk to Sheets and Gmail is needless — those run after
   // the response, kept alive by waitUntil so the platform cannot cut them off.
@@ -118,12 +148,10 @@ export default async function handler(req, res) {
     ref,
     mailSent: false,
     mailQueued: miss.length === 0,
-    mailError: miss.length
-      ? `Registration saved, but email is not configured (missing ${miss.join(', ')}).`
-      : undefined,
+    mailError: miss.length ? 'Registration saved, but the confirmation email is not set up yet.' : undefined,
   });
 
-  // --- 3. sheet mirror + confirmation email, after responding --------
+  // --- 4. sheet mirror + confirmation email, after responding ---------
   await afterResponse(async () => {
     try {
       const mirrored = await appendRegistration({ reference: ref, labelled });
@@ -157,6 +185,13 @@ export default async function handler(req, res) {
       await markEmailSent(ref, false, explained).catch(() => {});
     }
   });
+}
+
+async function releaseAll(held, hold) {
+  for (const fileId of held) {
+    await releaseUpload(fileId, hold)
+      .catch((err) => console.error(`[register] could not release upload ${fileId}:`, err.message));
+  }
 }
 
 function safeJson(s) {

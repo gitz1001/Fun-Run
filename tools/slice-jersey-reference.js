@@ -1,5 +1,5 @@
 /**
- * Slices reference_shirt.png into the twelve per-category jersey views the 3D
+ * Slices assets-src/reference/reference_shirt.png into the twelve per-category jersey views the 3D
  * viewer loads, and knocks the white page background out to transparency so
  * the artwork sits on the viewer's own stage rather than in a white box.
  *
@@ -20,7 +20,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
 
-const SRC = process.argv[2] || 'reference_shirt.png';
+const SRC = process.argv[2] || 'assets-src/reference/reference_shirt.png';
 const OUT = process.argv[3] || 'public/shirt/jersey';
 
 /** Reading order of the reference sheet: four rows of one category each. */

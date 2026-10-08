@@ -94,10 +94,15 @@ if (!dbConfigured()) {
   let host = 'unknown host';
   try { host = new URL(connectionString()).host; } catch {}
   try {
-    const rows = await sql()`SELECT to_regclass('public.registrations') AS t`;
+    const rows = await sql()`SELECT to_regclass('public.registrations') AS t,
+                                    to_regclass('public.uploads') AS u,
+                                    to_regclass('public.rate_limits') AS l`;
     if (!rows[0].t) {
       add('Database', BAD, `connected to ${host}, but the registrations table is missing`,
         'Run "npm run db:init".');
+    } else if (!rows[0].u || !rows[0].l) {
+      add('Database', WARN, `connected to ${host}, but the uploads / rate_limits tables are not there yet`,
+        'The app creates them on first use; "npm run db:init" does it now.');
     } else {
       const [{ n }] = await sql()`SELECT count(*)::int AS n FROM registrations`;
       add('Database', OK, `connected to ${host} — ${n} registration(s) stored`);
@@ -105,6 +110,20 @@ if (!dbConfigured()) {
   } catch (err) {
     add('Database', BAD, `could not query ${host}: ${err.message}`,
       'Check DATABASE_URL is complete and the database allows connections.');
+  }
+}
+
+/* ---------- 3b. Staff dashboard ---------- */
+
+{
+  if (!process.env.STAFF_PASSWORD) {
+    add('Staff sign-in', BAD, 'STAFF_PASSWORD is not set — the dashboard stays switched off');
+  } else if (!process.env.STAFF_SECRET) {
+    add('Staff sign-in', WARN, 'STAFF_SECRET is not set, so the session key is derived from the passcode',
+      'Optional, but better set. Long and random:\n' +
+      '     node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"');
+  } else {
+    add('Staff sign-in', OK, 'STAFF_PASSWORD and STAFF_SECRET are set');
   }
 }
 

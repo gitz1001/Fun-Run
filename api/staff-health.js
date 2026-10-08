@@ -33,6 +33,7 @@ export default async function handler(req, res) {
     SHEET_TAB: present('SHEET_TAB'),
     DATABASE_URL: present('DATABASE_URL') || present('POSTGRES_URL'),
     STAFF_PASSWORD: present('STAFF_PASSWORD'),
+    STAFF_SECRET: present('STAFF_SECRET'),
     SITE_URL: present('SITE_URL'),
   };
 

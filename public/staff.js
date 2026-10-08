@@ -1,3 +1,5 @@
+import { csvCell } from './csv.js';
+
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -12,6 +14,10 @@ const PAGE_SIZE = 50;
 let EMPLOYEE = null;
 // { name, label } — the waiver box on the intro page, recorded per row.
 let AGREEMENT = null;
+// { name, label } — the privacy consent, recorded the same way.
+let PRIVACY = null;
+// { field, value } while one of the figures at the top is filtering the table.
+let FILTER = null;
 // The last /api/staff-data payload, so the reset dialog can name the figures
 // it is about to delete without going back to the server for them.
 let LAST = null;
@@ -85,9 +91,9 @@ function wireApp() {
   let t;
   $('q').addEventListener('input', () => {
     clearTimeout(t);
-    t = setTimeout(() => load($('q').value.trim()), 220);
+    t = setTimeout(() => { CURRENT_PAGE = 1; load($('q').value.trim()); }, 220);
   });
-  $('clear').addEventListener('click', () => { $('q').value = ''; CURRENT_PAGE = 1; load(); $('q').focus(); });
+  $('clear').addEventListener('click', () => { $('q').value = ''; FILTER = null; CURRENT_PAGE = 1; load(); $('q').focus(); });
   $('refresh').addEventListener('click', () => load($('q').value.trim()));
   $('export').addEventListener('click', exportCsv);
 
@@ -95,6 +101,7 @@ function wireApp() {
     btn.addEventListener('click', () => {
       if (btn.dataset.type === TYPE) return;
       TYPE = btn.dataset.type;
+      CURRENT_PAGE = 1;
       document.querySelectorAll('.seg').forEach((b) => {
         const on = b === btn;
         b.classList.toggle('on', on);
@@ -126,6 +133,7 @@ async function load(q = '') {
     const params = new URLSearchParams();
     if (q) params.set('q', q);
     if (TYPE !== 'all') params.set('type', TYPE);
+    if (FILTER) { params.set('field', FILTER.field); params.set('value', FILTER.value); }
       params.set('limit', PAGE_SIZE);
       if (offset > 0) params.set('offset', offset);
     const res = await fetch('/api/staff-data' + (params.size ? `?${params}` : ''));
@@ -140,6 +148,7 @@ async function load(q = '') {
   ROWS = d.rows || [];
   EMPLOYEE = d.employee || null;
   AGREEMENT = d.agreement || null;
+  PRIVACY = d.privacy || null;
   LAST = d;
   renderSegments(d);
   renderStats(d);
@@ -162,57 +171,51 @@ function renderSegments(d) {
 }
 
 function renderStats(d) {
-  const cards = [
-    ['Total registered', d.total],
-  ];
+  // [caption, figure, the question it filters on]. A figure with no question
+  // behind it is a total, not a filter.
+  const cards = [['Total registered', d.total, null]];
   if (d.segments) {
-    cards.push(['Non-employees', d.segments.public]);
-    cards.push(['Employees · salary deduction', d.segments.employee]);
+    cards.push(['Non-employees', d.segments.public, null]);
+    cards.push(['Employees · salary deduction', d.segments.employee, null]);
   }
-  if (d.breakdown?.category?.counts?.length) {
-      for (const c of d.breakdown.category.counts) cards.push([c.value || 'Unspecified', c.n]);
-    }
-    if (d.breakdown?.school?.counts?.length) {
-      for (const c of d.breakdown.school.counts) cards.push([c.value || 'Unspecified Affiliation', c.n]);
-    }
-  let html = cards.map(([k, v]) =>
-      `<div class="stat kpi-card" tabindex="0" data-val="${esc(k)}" title="Filter by ${esc(k)}"><span class="stat-n">${esc(v)}</span><span class="stat-k">${esc(k)}</span></div>`).join('');
+  for (const [key, blank] of [['category', 'Unspecified'], ['school', 'Unspecified Affiliation']]) {
+    const group = d.breakdown?.[key];
+    for (const c of group?.counts || []) cards.push([c.value || blank, c.n, c.value ? group.label : null]);
+  }
+
+  let html = cards.map(([k, v, field]) => {
+    const figure = `<span class="stat-n">${esc(v)}</span><span class="stat-k">${esc(k)}</span>`;
+    if (!field) return `<div class="stat">${figure}</div>`;
+    const on = FILTER?.field === field && FILTER.value === k;
+    return `<div class="stat kpi-card${on ? ' on' : ''}" role="button" tabindex="0" aria-pressed="${on}"
+                 data-field="${esc(field)}" data-val="${esc(k)}"
+                 title="${on ? 'Show everyone again' : `Show only ${esc(field)}: ${esc(k)}`}">${figure}</div>`;
+  }).join('');
 
   if (d.needsAttention > 0) {
     html += `<div class="stat warn"><span class="stat-n">${esc(d.needsAttention)}</span>
              <span class="stat-k">need attention</span></div>`;
   }
   $('stats').innerHTML = html;
-    
-    // KPI filtering
-    document.querySelectorAll('.kpi-card').forEach(card => {
-      if(card.dataset.val === 'Total registered' || card.dataset.val === 'Non-employees' || card.dataset.val.includes('salary deduction')) return; // Don't filter by these
-      card.addEventListener('click', () => {
-        $('q').value = card.dataset.val;
-        CURRENT_PAGE = 1;
-        load(card.dataset.val);
-      });
-      card.addEventListener('keydown', (e) => {
-        if(e.key === 'Enter') card.click();
-      });
-      card.style.cursor = 'pointer';
+
+  // A figure filters the table to exactly that answer; pressing it again
+  // lifts the filter. It works alongside the search box rather than through
+  // it, so "Alumni" as a school does not also match the Alumni Department.
+  $('stats').querySelectorAll('.kpi-card').forEach((card) => {
+    const pick = () => {
+      const { field, val } = card.dataset;
+      const same = FILTER?.field === field && FILTER.value === val;
+      FILTER = same ? null : { field, value: val };
+      CURRENT_PAGE = 1;
+      load($('q').value.trim());
+    };
+    card.addEventListener('click', pick);
+    card.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); }
     });
-    
-    // KPI filtering
-    document.querySelectorAll('.kpi-card').forEach(card => {
-      if(card.dataset.val === 'Total registered' || card.dataset.val === 'Non-employees' || card.dataset.val.includes('salary deduction')) return; // Don't filter by these
-      card.addEventListener('click', () => {
-        $('q').value = card.dataset.val;
-        CURRENT_PAGE = 1;
-        load(card.dataset.val);
-      });
-      card.addEventListener('keydown', (e) => {
-        if(e.key === 'Enter') card.click();
-      });
-      card.style.cursor = 'pointer';
-    });
-    
-    renderPagination(d);
+  });
+
+  renderPagination(d);
 }
 
 /** True when this registration is an SISC employee paying by salary deduction. */
@@ -227,11 +230,12 @@ function renderRows(d) {
   const groupTotal = TYPE === 'all' ? d.total : d.segments?.[TYPE] ?? d.returned;
   $('count').textContent = d.matchedReference
     ? `Exact match for ${d.matchedReference}`
-    : `${d.returned} of ${groupTotal} ${TYPE_NAMES[TYPE]} shown`;
+    : `${d.returned} of ${groupTotal} ${TYPE_NAMES[TYPE]} shown` +
+      (FILTER ? ` · ${FILTER.field}: ${FILTER.value}` : '');
 
   if (!ROWS.length) {
     tbody.innerHTML = '';
-    $('empty').textContent = $('q').value.trim()
+    $('empty').textContent = ($('q').value.trim() || FILTER)
       ? `No ${TYPE_NAMES[TYPE]} match that search.`
       : `No ${TYPE_NAMES[TYPE]} yet.`;
     $('empty').hidden = false;
@@ -292,12 +296,38 @@ function when(iso) {
  * existed have nothing to show, and say so rather than implying a refusal.
  */
 function waiverProof(r) {
-  if (r.waiver_agreed === undefined || r.waiver_agreed === null) {
+  return consentProof(r.waiver_agreed, r.waiver_agreed_at);
+}
+
+/** The same reading of the privacy consent, which is recorded the same way. */
+function privacyProof(r) {
+  return consentProof(r.privacy_agreed, r.privacy_agreed_at);
+}
+
+function consentProof(agreed, agreedAt) {
+  if (agreed === undefined || agreed === null) {
     return { text: 'Not recorded', cls: 'dim', csv: '' };
   }
-  if (!r.waiver_agreed) return { text: 'Not agreed', cls: 'bad', csv: 'Not agreed' };
-  const at = r.waiver_agreed_at ? ` · ${when(r.waiver_agreed_at)}` : '';
+  if (!agreed) return { text: 'Not agreed', cls: 'bad', csv: 'Not agreed' };
+  const at = agreedAt ? ` · ${when(agreedAt)}` : '';
   return { text: 'Agreed' + at, cls: 'ok', csv: 'Agreed' };
+}
+
+/**
+ * Where "Open receipt" may point, or '' when the stored value is not a
+ * receipt at all.
+ *
+ * Only the upload question is ever linked, and only to this app's own receipt
+ * route or — for rows from before that route existed — a Google Drive file.
+ * Any other answer is a runner's typing and is shown as text: the old rule
+ * linked every answer that looked like a URL, under a label staff trust.
+ */
+function receiptHref(v) {
+  const s = String(v ?? '');
+  const own = s.match(/^(?:https?:\/\/[^/\s]+)?\/api\/receipt\?id=([A-Za-z0-9_-]{10,200})$/);
+  // Relative, so it opens on whichever host staff are signed in to.
+  if (own) return `/api/receipt?id=${own[1]}`;
+  return /^https:\/\/drive\.google\.com\/file\/d\/[A-Za-z0-9_-]{10,200}(?:[/?#]|$)/.test(s) ? s : '';
 }
 
 function showDetail(r) {
@@ -308,8 +338,9 @@ function showDetail(r) {
   const rows = FIELDS.map((f) => {
     const v = a[f.label];
     if (v === undefined || v === '') return '';
-    const val = /^https:\/\/\S+$/.test(v)
-      ? `<a href="${esc(v)}" target="_blank" rel="noopener noreferrer">Open receipt</a>`
+    const href = f.type === 'file' ? receiptHref(v) : '';
+    const val = href
+      ? `<a href="${esc(href)}" target="_blank" rel="noopener noreferrer">Open receipt</a>`
       : esc(v);
     return `<tr><th>${esc(f.label)}</th><td>${val}</td></tr>`;
   }).join('');
@@ -325,6 +356,7 @@ function showDetail(r) {
     : '<p class="detail-kind pub">Non-employee · paying by bank transfer</p>';
 
   const waiver = waiverProof(r);
+  const privacy = privacyProof(r);
 
   $('detail-body').innerHTML = `
     ${kind}
@@ -334,6 +366,10 @@ function showDetail(r) {
       <tr>
         <th>${esc(AGREEMENT?.label || 'Waiver of Liability')}</th>
         <td><span class="pill ${waiver.cls}">${esc(waiver.text)}</span></td>
+      </tr>
+      <tr>
+        <th>${esc(PRIVACY?.label || 'Data Privacy Consent')}</th>
+        <td><span class="pill ${privacy.cls}">${esc(privacy.text)}</span></td>
       </tr>
       <tr><th>Registered</th><td>${esc(when(r.created_at))}</td></tr>
     </tbody></table>`;
@@ -374,27 +410,6 @@ const EXPORT_COLUMNS = {
   ],
 };
 
-/**
- * A cell that opens as text in Excel and Sheets.
- *
- * Everything is quoted, and a value a spreadsheet would evaluate is
- * prefixed with an apostrophe so it cannot run — a registration form is
- * user input and this file is opened by somebody in the finance office,
- * where "=" and "+cmd|..." are a real vector.
- *
- * A leading + or - on a plain phone number is not one of those, so it is
- * left alone rather than stamping an apostrophe through every +63 number.
- */
-const PLAIN_NUMBER = /^[+-][0-9 ()\-.]*$/;
-
-function csvCell(value) {
-  const v = String(value ?? '');
-  const executable = /^[=@\t\r]/.test(v)
-    || (/^[+-]/.test(v) && !PLAIN_NUMBER.test(v));
-  const cell = executable ? "'" + v : v;
-  return '"' + cell.replace(/"/g, '""') + '"';
-}
-
 // Exposed so the escaping above can be exercised directly by a test. It is a
 // pure string function — it reads nothing and returns no data.
 window.__cell = csvCell;
@@ -415,7 +430,7 @@ async function fetchAllForExport(type = TYPE) {
   const rows = [];
   const pageSize = 200;
   for (let offset = 0; ; offset += pageSize) {
-    const params = new URLSearchParams({ limit: String(pageSize), offset: String(offset) });
+    const params = new URLSearchParams({ limit: String(pageSize), offset: String(offset), stats: '0' });
     if (type !== 'all') params.set('type', type);
     const res = await fetch(`/api/staff-data?${params}`);
     if (res.status === 401) { location.reload(); return null; }
@@ -475,7 +490,7 @@ function buildCsv(rows, columns) {
   // Waiver is a fixed column on every export, not one of the question columns:
   // it is the proof of acceptance, and it should not drop out of a file
   // because a tab exports a narrow set of questions.
-  const header = ['Reference', 'Registered', 'Type', 'Waiver', 'Waiver accepted at', ...columns];
+  const header = ['Reference', 'Registered', 'Type', 'Waiver', 'Waiver accepted at', 'Privacy consent', ...columns];
   const lines = [header.map(csvCell).join(',')];
 
   for (const r of rows) {
@@ -486,6 +501,7 @@ function buildCsv(rows, columns) {
       csvCell(isEmployee(r) ? 'Employee' : 'Non-employee'),
       csvCell(waiverProof(r).csv),
       csvCell(r.waiver_agreed_at ? csvDate(r.waiver_agreed_at) : ''),
+      csvCell(privacyProof(r).csv),
       ...columns.map((label) => csvCell(a[label] ?? '')),
     ].join(','));
   }
@@ -507,7 +523,7 @@ function backupColumns(rows) {
   const columns = FIELDS.map((f) => f.label);
   // buildCsv already writes the waiver as a fixed column, so the copy of it
   // in the answers blob would only repeat itself here.
-  const seen = new Set([...columns, AGREEMENT?.label || 'Waiver of Liability']);
+  const seen = new Set([...columns, AGREEMENT?.label || 'Waiver of Liability', PRIVACY?.label || 'Data Privacy Consent']);
   for (const r of rows) {
     for (const key of Object.keys(r.answers || {})) {
       if (seen.has(key)) continue;

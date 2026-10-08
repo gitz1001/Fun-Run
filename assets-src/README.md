@@ -80,7 +80,7 @@ Requirements:
 * Around 900px on the long side is plenty; keep each file under about 250 KB.
   There are eight and they all load at once.
 
-The files there now were sliced out of `reference_shirt.png` by
+The files there now were sliced out of `assets-src/reference/reference_shirt.png` by
 
     node tools/slice-jersey-reference.js
 

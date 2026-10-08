@@ -141,6 +141,18 @@ body.staff {
   color: var(--muted);
   margin-top: 2px;
 }
+/* A figure that filters the table when pressed, and the one doing so now. */
+.kpi-card {
+  cursor: pointer;
+}
+.kpi-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.kpi-card.on {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent);
+}
 .stat.warn {
   border-color: var(--warn-line);
   background: var(--warn-bg);

@@ -1,115 +1,94 @@
-# Fun Run Registration — cloned Google Form → Sheet → Gmail confirmation
+# Southville Run For A Cause — registration
 
-A public fun run registration page (a clone of your Google Form) deployed on **Vercel**. A
-submission is written into the Google Sheet through the Google Form, and a
-confirmation email is sent over **Gmail SMTP with OAuth2 (XOAUTH2)** — but
-**only after** the registration has actually been recorded.
+A public fun run registration page with a staff dashboard, deployed on
+**Vercel**. A registration is written to **Postgres** (Neon), mirrored into a
+**Google Sheet**, and confirmed by email over **Gmail SMTP (XOAUTH2)**.
+Proof-of-payment receipts are stored in a private **Google Drive** folder.
 
 ```
-Visitor -> public/index.html  (rendered from lib/form-schema.js)
+Visitor -> public/index.html  (questions rendered from lib/form-schema.js)
               |
+              |-- receipt -> POST /api/drive-upload -> Google Drive
+              |                 the file id is noted in the `uploads` table
               v
         POST /api/register
               |
-              |-- 1. POST to .../formResponse  -> row appears in the Sheet
-              |      if this fails -> 502, and NO email is sent
-              |
-              '-- 2. Nodemailer -> smtp.gmail.com:587 (XOAUTH2) -> confirmation
+              |-- 1. the receipt id must be in `uploads`, and unused
+              |-- 2. INSERT into Postgres      <- this decides "registered"
+              |      if it fails -> 502, nothing is emailed, nothing is deleted
+              |-- 3. respond to the runner with their reference
+              '-- 4. after the response: append to the Sheet, send the email
+                     (either failing is recorded on the row and replayable)
+
+Staff   -> /staff -> /api/staff-login, /api/staff-data, /api/receipt
 ```
 
-## Why Nodemailer and not PHPMailer
-
-Vercel has no PHP runtime — only Node, Python, Go and Ruby. PHPMailer cannot
-run there. Nodemailer is the direct equivalent and speaks the same Gmail
-XOAUTH2 that a Google Cloud OAuth client issues.
-
-A PHP/PHPMailer build of the same system is at `C:\xampp\htdocs\gform-smtp`
-if you ever host on Apache/cPanel instead.
-
----
-
-## Before it will work
-
-**The source Google Form must be shared as "Anyone with the link."**
-It is currently restricted to your organisation, and Google answers anonymous
-posts with **HTTP 401** — nothing gets recorded and no email goes out.
-
-Open the form → Settings → Responses → turn **off** "Restrict to users in
-Southville International School and Colleges".
+Postgres is the source of truth. The Sheet is a mirror and the email is a
+courtesy, so an outage in either never loses a registration.
 
 ---
 
 ## Setup
 
-### 1. Clone the real form's fields
-```bash
-npm run schema                    # if the form is "Anyone with the link"
-npm run import -- payload.json    # if it stays sign-in restricted
-```
-
-For the second, open the form signed in, press F12, and run:
-```js
-copy(JSON.stringify(FB_PUBLIC_LOAD_DATA_))
-```
-Paste the result into `payload.json`.
-Reads the live form and rewrites `lib/form-schema.js` with the real questions,
-entry ids, required flags and choices. The web page and all validation are
-driven from that one file, so nothing else needs editing.
-
-If the form is still restricted the script says so and prints a browser-console
-snippet that copies the field list to your clipboard as a manual fallback.
-
-### 2. Google Cloud OAuth client
-1. **APIs & Services → Library →** enable **Gmail API**.
+### 1. Google Cloud OAuth client
+1. **APIs & Services → Library →** enable **Gmail API**, **Google Sheets API**
+   and **Google Drive API**.
 2. **OAuth consent screen → User type: Internal.**
-   Leaving it on *Testing* makes Google expire the refresh token after **7 days** —
-   this is what broke the e-gatepass mailer.
+   Left on *Testing*, Google expires the refresh token after **7 days**.
 3. **Credentials → Create OAuth client ID → Web application.**
    Authorised redirect URI: `http://localhost:5555/oauth2callback`
 4. Copy the Client ID **and** the Client secret from that *same* client.
    A mismatched pair is the `invalid_client` error.
 
-### 3. Get a refresh token
+### 2. Environment
+```bash
+cp .env.example .env.local
+```
+Fill it in, then get a refresh token (written into `.env.local` for you):
 ```bash
 npm run token
 ```
-Opens a consent URL, catches the redirect, and prints the three environment
-variables to paste into Vercel.
-
-### 4. Prove the mail works before deploying
-```bash
-cp .env.example .env.local     # fill in the values
-npm run test:smtp you@example.com
-```
-Verifies the SMTP connection, then sends a real test message.
-
-### 5. Run locally
-```bash
-npm run dev                    # http://localhost:3000
-```
-`DEV_HOT=1 npm run dev` enables hot-reloading of `api/*.js` (off by default so
-module state behaves like a warm Vercel instance).
-
-### 6. Deploy
-```bash
-npx vercel            # preview
-npx vercel --prod     # production
-```
-Then set the environment variables in **Vercel → Project → Settings →
-Environment Variables**:
 
 | Variable | Notes |
 |---|---|
+| `DATABASE_URL` | Postgres — Vercel → Storage → Neon. `POSTGRES_URL` also works |
 | `GMAIL_USER` | the sending mailbox |
-| `GOOGLE_CLIENT_ID` | from the OAuth client |
-| `GOOGLE_CLIENT_SECRET` | from the **same** OAuth client |
-| `GOOGLE_REFRESH_TOKEN` | from `npm run token` |
-| `MAIL_FROM_NAME` | optional display name |
-| `ADMIN_COPY` | optional bcc of every confirmation |
-| `APP_NAME` | optional, appears in the subject line |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | from the **same** OAuth client |
+| `GOOGLE_REFRESH_TOKEN` | from `npm run token`; covers Gmail, Sheets and Drive |
+| `GOOGLE_DRIVE_FOLDER_ID` | the private folder receipts are uploaded to |
+| `SHEET_ID` / `SHEET_TAB` | the mirror spreadsheet and tab (default `Registrations`) |
+| `STAFF_PASSWORD` | the shared staff passcode; turns the dashboard on |
+| `STAFF_SECRET` | optional: signs the staff session cookie. Derived from the passcode if unset |
+| `SITE_URL` | the public origin, used to build receipt links |
+| `MAIL_FROM_NAME`, `ADMIN_COPY`, `APP_NAME` | optional |
 
-`SMTP_PASSWORD` is an alternative to the three `GOOGLE_*` vars if you ever
-switch to a Gmail App Password — the mailer takes that path automatically.
+`SMTP_PASSWORD` (a Gmail App Password) is an alternative to OAuth for mail
+only; Sheets and Drive still need the three `GOOGLE_*` values.
+
+Generate `STAFF_SECRET` with:
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+Changing `STAFF_SECRET` signs every staff member out, which is how a leaked
+passcode or a departed volunteer is handled.
+
+### 3. Database and Sheet
+```bash
+npm run db:init       # creates / upgrades the tables; safe to repeat
+npm run sheet:init    # creates the tab and writes the header row
+npm run doctor        # checks every moving part and says what is missing
+```
+The app also brings an older database up to date by itself on first use, so a
+deploy that adds a table does not depend on someone remembering `db:init`.
+
+### 4. Run and deploy
+```bash
+npm run dev           # http://localhost:3000, with the same headers as production
+npm test              # node's built-in test runner; no network, no database
+npx vercel --prod
+```
+`DEV_HOT=1 npm run dev` hot-reloads `api/*.js`. `npm run push-env -- --yes`
+copies `.env.local` to Vercel's Production environment.
 
 ---
 
@@ -117,22 +96,55 @@ switch to a Gmail App Password — the mailer takes that path automatically.
 
 | Path | Purpose |
 |---|---|
-| `lib/form-schema.js` | the cloned form definition + validation — **the single source of truth** |
-| `lib/google-form.js` | posts a registration into `/formResponse` |
-| `lib/mailer.js` | Nodemailer over Gmail XOAUTH2, plus error explanations |
-| `lib/template.js` | HTML + plain-text confirmation email |
-| `api/register.js` | validate → record → *then* email |
-| `api/schema.js` | serves the schema to the front-end |
-| `public/index.html` `styles.css` `app.js` | the cloned form UI (light + dark) |
-| `public/docs/` | Waiver of Liability + Health Declaration PDFs, linked from the intro |
-| `public/payment/` | the bank-transfer image shown in the Payment section |
-| `public/shirt/` | the shirt size chart shown inside the shirt-size question |
-| `tools/fetch-form-schema.js` | regenerates `form-schema.js` from the live form |
-| `tools/import-form-source.js` | same, from a saved page or pasted payload |
-| `lib/parse-form.js` | shared Google Forms payload parser |
-| `tools/get-refresh-token.js` | one-time OAuth consent → refresh token |
-| `tools/test-smtp.js` | end-to-end mail check |
-| `tools/dev-server.js` | local stand-in for Vercel routing |
+| `lib/form-schema.js` | the questions and their validation — **the single source of truth** |
+| `lib/db.js` | Postgres schema and queries: `registrations`, `uploads`, `rate_limits` |
+| `lib/receipts.js` | what counts as a receipt id, and the link stored for one |
+| `lib/google-drive.js` `lib/google-auth.js` | Drive upload / fetch / delete over the OAuth token |
+| `lib/sheets.js` | appends the mirror row; adds new columns to the right, never reorders |
+| `lib/mailer.js` `lib/template.js` | Nodemailer over Gmail, and the confirmation email |
+| `lib/staff-auth.js` | the staff passcode, signed session cookie and login throttle |
+| `lib/rate-limit.js` | per-IP limits counted in Postgres, so they hold across instances |
+| `api/register.js` | validate → check receipt → record → respond → mirror and email |
+| `api/drive-upload.js` | receives a receipt (WebP, JPEG, PNG, HEIC or PDF, ≤ 4 MB) and stores it |
+| `api/receipt.js` | serves a receipt to signed-in staff |
+| `api/schema.js` | serves the questions to the page |
+| `api/staff-*.js` | sign-in, dashboard data, health check, reset |
+| `public/` | the registration page, the staff dashboard, and their assets |
+| `tools/` | `doctor`, `db-init`, `sheet-init`, `replay`, `sweep-uploads`, `get-refresh-token`, `push-env`, `dev-server` |
+| `test/` | the rules that must not regress |
+| `assets-src/` | working files and supplier artwork; never deployed |
+
+`tools/fetch-form-schema.js`, `tools/import-form-source.js` and
+`lib/parse-form.js` date from when the questions were cloned from a Google
+Form. They regenerate a bare `lib/form-schema.js` and would overwrite the
+hand-maintained one, so do not run them against this repo.
+
+---
+
+## Receipts
+
+Photos are resized in the browser to a 1400px edge and re-encoded (stepping
+down in quality towards ~700 KB), which also strips camera metadata. The
+format is WebP where the browser can encode it and **JPEG where it cannot —
+Safari, and so every browser on an iPhone, cannot.** PDFs are sent as they
+are, and so is a photo the browser could not re-encode. The file picker does
+not list HEIC on purpose: an iPhone then converts a HEIC photo to JPEG itself.
+The server checks the file's signature against its declared type.
+
+The rules that keep this safe:
+
+* The browser submits only the **Drive file id**. `api/register.js` accepts it
+  only if `api/drive-upload.js` recorded it in the `uploads` table and no other
+  registration has used it. The link that is stored is built by the server.
+* **No web request deletes from Drive.** A registration that fails to save
+  frees its receipt so the runner can simply submit again.
+* `/api/receipt` serves only ids in `uploads`, to signed-in staff.
+* Uploads that never became a registration are listed by `npm run sweep` and
+  deleted with `npm run sweep -- --fix` once they are a day old. That command
+  deletes only ids from `uploads` and never one a registration refers to.
+
+The confirmation email is a copy of the runner's own answers. The receipt is
+shown there as "Received", since the stored link is for staff.
 
 ---
 
@@ -142,129 +154,76 @@ Two options, set in `lib/form-schema.js` under `payment_method`:
 
 | Option | What happens |
 |---|---|
-| Bank transfer | PNB account details are shown at the top of the Payment section; a receipt must be uploaded |
-| Employee | opens the **SISC Salary Deduction** pop-up — employee full name, employee number, department/office and a typed payroll authorisation — and the proof-of-payment question is not asked at all |
+| Bank transfer | bank details are shown in the Payment section; a receipt must be uploaded |
+| Employee | opens the **Salary Deduction** pop-up — employee name, number, department and a typed payroll authorisation — and no receipt is asked for |
 
-The four salary-deduction questions are ordinary schema fields carrying two
-extra keys:
+The salary-deduction questions are ordinary schema fields with two extra keys:
 
 ```js
 panel: 'salary-deduction',                                // drawn in the pop-up
 showIf: { field: 'payment_method', equals: 'Employee' },  // only asked of employees
 ```
 
-The proof-of-payment upload is normalised before it reaches Vercel Blob:
-JPG/PNG/WEBP images are resized to a maximum 1400px edge and encoded as
-lossy WebP, stepping through quality levels until the result is around 700 KB
-or the smallest acceptable encoding is reached. This strips camera metadata
-and keeps the Blob copy compact. PDFs are left as PDFs. The server accepts
-only a verified WebP image or PDF, so an image cannot bypass the compression
-step by posting directly to the upload endpoint.
-
-The proof-of-payment question carries the mirror image of that rule, so a
-payroll deduction never asks for a receipt that does not exist:
-
-```js
-showIf: { field: 'payment_method', notEquals: 'Employee' },
-```
-
 `isActive()` in `lib/form-schema.js` is the single rule for whether a
-conditional question applies, and both the page and `validate()` use it — so
-they cannot disagree about what is required. `api/register.js` blanks any
-answer to a question that was not asked, so switching back to a bank
-transfer never leaves payroll details in the Sheet or the confirmation email,
-and an employee's registration never carries a receipt.
-
-### Replacing the placeholder assets
-
-`public/docs/` currently holds **placeholder** PDFs — replace them with the
-signed documents, keeping the filenames, or the links on the front page will
-serve the placeholders.
-
-`public/payment/bank-transfer.<ext>` and `public/shirt/shirt-size.<ext>` are
-reference pictures the organisers drop in later. Both go through the same
-slot: `data-file` on the `<figure>` names the path without an extension, and
-the page tries each sensible spelling in turn — hyphen or underscore, `.jpg`
-`.png` `.jpeg` or `.webp` — so a file can go in as it came off the phone or
-the scanner. Neither is cropped, both get a "Full size" link, and a slot with
-no file shows an "Image coming soon" placeholder so the page works either way.
-See each folder's `README.txt`.
-
-To add another such picture, drop a `<figure class="shot" data-file="/dir/name">`
-into a template and call `wireImageSlot()` on it.
+conditional question applies, and both the page and `validate()` use it.
+`api/register.js` blanks any answer to a question that was not asked.
 
 ### After changing the questions
 
-`headerRow()` in `lib/sheets.js` derives the Sheet columns from the schema, so
-adding or reordering a field changes the column layout. Run `npm run sheet:init`
-against a fresh tab, or update the header row by hand — rows written before the
-change keep the old column order.
+`headerRow()` in `lib/sheets.js` derives the Sheet columns from the schema. A
+new question is appended as a new column on the right of an existing sheet;
+existing columns are never moved, so old rows stay aligned.
 
 ---
 
 ## Staff dashboard
 
-`/staff` splits registrations into **Employees** (paying by salary deduction)
-and **Non-employees**, because the two are chased up differently — payroll on
-one side, a receipt on the other. Tabs switch between them and carry live
-counts, every row is labelled, and the split is also shown as two figures at
-the top. `FORM.employeeField` / `FORM.employeeValue` in `lib/form-schema.js`
-define what counts as an employee; `employeeQuestion()` is what the dashboard
-and `api/staff-data.js` both read, so nothing hard-codes the answer text.
+`/staff` splits registrations into **Employees** (salary deduction) and
+**Non-employees**, because payroll chases one and a receipt settles the other.
+`FORM.employeeField` / `FORM.employeeValue` define what counts as an employee.
 
-`GET /api/staff-data?type=employee` and `?type=public` apply the same filter
-server-side; the counts are always taken over the whole table, so they stay
-meaningful while a search narrows the rows.
+* **Search** matches reference, name, email or any answer.
+* **The figures at the top** (race category, school) filter the table to
+  exactly that answer when pressed, and lift the filter when pressed again.
+* **A registration's detail** shows every answer, the waiver and the privacy
+  consent with the time each was given, and an "Open receipt" link.
+* **Export CSV** exports the whole tab you are on. The file is UTF-8 with a
+  BOM, every cell is quoted, and a value a spreadsheet would execute is
+  prefixed with an apostrophe — a `+63` phone number is left alone.
+* **Reset** deletes every registration after downloading a CSV backup and a
+  typed confirmation. It does not touch the Google Sheet or the receipts in
+  Drive.
 
-### Export
-
-**Export CSV** hands the finance office a spreadsheet instead of a screenshot.
-It exports the tab you are on, paging past the 50 rows shown on screen, and
-picks its columns to suit:
-
-| Tab | Columns |
-|---|---|
-| Employees | employee number, department/office and the typed authorisation, plus the runner's own details for matching |
-| Non-employees / Everyone | the runner's details and the proof-of-payment link |
-
-The file is UTF-8 **with a BOM**, so Excel renders "Las Piñas" rather than
-mojibake, and every cell is quoted. A value a spreadsheet would execute
-(`=`, `@`, or a `+`/`-` that is not a plain number) is prefixed with an
-apostrophe — registrations are user input and this file is opened by someone
-in finance. A `+63` phone number is left alone.
-
-The export always covers the whole group, never just the current search; when
-a search is active the confirmation message says so.
-
-**The export carries no amount.** Nothing in the form captures a registration
-fee, so payroll has to apply the per-category fee themselves — the race
-category is in the file for that. Add a fee field to `lib/form-schema.js` and
-it will appear in the export automatically.
-
-Registrations taken before employees were exempted still have a receipt on
-file. The dashboard shows whatever is stored rather than what the rules say
-today, so those rows keep their "Open receipt" link.
+`npm run replay` lists registrations whose Sheet row or email did not go out,
+and `npm run replay -- --fix` sends them.
 
 ---
 
 ## Design notes
 
-- **No registration, no email.** The mail call in `api/register.js` sits after
-  the `if (!recorded.ok) return 502` guard, so a failed Google Forms post can
-  never produce a confirmation.
-- **A mail failure never loses the registration.** The row is already in the
-  Sheet, so the response is `200 ok:true` with `mailSent:false` and the reason,
-  rather than an error that would invite the user to submit twice.
-- Honeypot field plus a per-IP rate limit (5/min) on warm instances.
-- All user input is escaped in both the page and the email.
+- **No registration, no email**, and **a mail failure never loses a
+  registration**: the response is `200 ok:true` once the row is saved.
+- Every answer is stripped of control characters and length-capped before it
+  is validated or stored.
+- Per-IP limits (registrations, uploads, failed sign-ins) are counted in
+  Postgres and fall back to memory if the database is unreachable.
+- Staff sessions are a signed, HttpOnly, SameSite=Strict cookie valid for 12
+  hours.
+- All user input is escaped in the page, the dashboard and the email, and no
+  answer is ever rendered as a link.
+- `vercel.json` sets a strict Content-Security-Policy (`script-src 'self'`),
+  so scripts live in files, not inline.
 
 ## Troubleshooting
 
 | Symptom | Cause |
 |---|---|
-| `HTTP 401` from Google Forms | the form still requires sign-in |
-| `HTTP 400` from Google Forms | an entry id is wrong — re-run `npm run schema` |
+| Staff page says "not enabled" | `STAFF_PASSWORD` is missing in that environment |
+| Page says "Preview mode" | no `DATABASE_URL` in that environment |
+| Uploads fail with "not set up yet" | Drive OAuth, `GOOGLE_DRIVE_FOLDER_ID` or the database is missing |
+| "must be uploaded before submitting" on a file that was attached | the upload is unknown or already used — attach it again |
 | `invalid_client` | client id and secret are from different OAuth clients |
-| `invalid_grant` | refresh token expired — consent screen is on *Testing*, set it to *Internal* and re-run `npm run token` |
+| `invalid_grant` | refresh token expired — set the consent screen to *Internal*, re-run `npm run token` |
 | `535-5.7.8` | Workspace admin has SMTP/IMAP access disabled for that user |
-| Page says "not connected yet" | `lib/form-schema.js` still has placeholder entry ids |
+| Sheet 403 | the account behind the refresh token cannot edit the spreadsheet |
+| A variable was added but nothing changed | Vercel reads variables at deploy time — redeploy |

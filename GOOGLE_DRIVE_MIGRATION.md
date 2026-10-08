@@ -6,7 +6,7 @@ This version replaces Vercel Blob receipt storage with Google Drive.
 
 `GOOGLE_DRIVE_FOLDER_ID=1ePnOM7bKACgqj4KZZVaRKiYUVz_a8f1A`
 
-The folder should remain private. Staff view receipts through `/api/receipt?p=<Drive file ID>` after staff authentication.
+The folder should remain private. Staff view receipts through `/api/receipt?id=<Drive file ID>` after staff authentication. The route serves only files the app itself uploaded, which it tracks in the `uploads` table.
 
 ## Required environment variables
 
@@ -28,7 +28,7 @@ Then run:
 npm run token
 ```
 
-The token helper now requests Gmail + Sheets + Drive (`drive.file`) access. Re-authorise once after this migration so the refresh token contains the Drive scope.
+The token helper requests Gmail + Sheets + full Drive (`drive`) access — full, because the narrower `drive.file` scope cannot write into a folder the app did not create. Re-authorise once after this migration so the refresh token contains the Drive scope.
 
 ## Image format
 
@@ -36,7 +36,9 @@ The existing browser upload flow continues to convert/downscale images to WebP b
 
 ## Database
 
-The existing `proof_url` column can remain for compatibility: the application stores its own authenticated receipt URL there. The actual Google Drive file ID is encoded in that URL. A later schema cleanup can rename the column to `proof_file_id`.
+The `proof_url` column holds the app's own authenticated receipt URL, `<site>/api/receipt?id=<Drive file ID>`. The browser submits only the file ID; the server checks it against the `uploads` table and builds the URL itself. Rows written before this hold a `drive.google.com/file/d/...` link instead, which the dashboard still opens.
+
+Uploads that never became a registration are listed, and with `--fix` deleted, by `npm run sweep`.
 
 ## Important
 
