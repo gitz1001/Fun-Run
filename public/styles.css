@@ -487,6 +487,10 @@ body{
   margin:14px 0 4px;font-size:13.5px;color:var(--muted);line-height:1.7;
   word-break:break-word;
 }
+/* Two contact lines in a row read as one block, not two paragraphs. */
+.contact + .contact{margin-top:4px}
+/* The same note and contacts, repeated above the registration form. */
+.form-note{margin:0 0 20px}
 /* The only standing notice on the page — it is always true, and it is not a
    problem. The filled panel it used to sit in is the treatment the error and
    warning banners need in order to interrupt; spending it on a permanent
