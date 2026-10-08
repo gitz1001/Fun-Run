@@ -663,7 +663,7 @@ function renderPagination(d) {
     p = document.createElement('div');
     p.id = 'pagination';
     p.className = 'pagination';
-    $('table-wrap').after(p);
+    $('table-wrap')document.querySelector(\'.table-card\').after(p);
   }
   
   const groupTotal = TYPE === 'all' ? d.total : d.segments?.[TYPE] ?? d.returned;
