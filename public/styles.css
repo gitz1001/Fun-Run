@@ -487,10 +487,27 @@ body{
   margin:14px 0 4px;font-size:13.5px;color:var(--muted);line-height:1.7;
   word-break:break-word;
 }
-/* Two contact lines in a row read as one block, not two paragraphs. */
-.contact + .contact{margin-top:4px}
-/* The same note and contacts, repeated above the registration form. */
-.form-note{margin:0 0 20px}
+/* The same note and contacts, repeated directly above the submit button. */
+.form-note{margin:26px 0 22px}
+
+/* The way out for someone the form has failed. A link in a sentence was easy
+   to read past, so it is drawn as what it is: something to press. Outlined
+   rather than filled, so it never competes with the submit button below it. */
+.backup{
+  margin:14px 0 0;display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;
+  font-size:13.5px;color:var(--muted);line-height:1.5;
+}
+.backup-link{
+  display:inline-flex;align-items:center;gap:8px;
+  min-height:44px;padding:10px 16px;border-radius:10px;
+  border:1.5px solid var(--accent);background:var(--card);color:var(--accent);
+  font:600 14px var(--font);text-decoration:none;
+  transition:background .15s,color .15s,transform .06s;
+}
+.backup-link:hover{background:var(--accent);color:var(--accent-ink);text-decoration:none}
+.backup-link:active{transform:translateY(1px)}
+.backup-link:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring)}
+.backup-link svg{flex:none}
 /* The only standing notice on the page — it is always true, and it is not a
    problem. The filled panel it used to sit in is the treatment the error and
    warning banners need in order to interrupt; spending it on a permanent
