@@ -99,7 +99,7 @@ function showView(name, { silent = false } = {}) {
     if (location.hash !== hash) history.pushState({ view: name }, '', hash);
     window.scrollTo({ top: 0, behavior: 'smooth' });
     // Move focus so keyboard and screen-reader users land in the new screen.
-    (toForm ? $('form-h') : $('proceed'))?.focus({ preventScroll: true });
+    setTimeout(() => { (toForm ? $('form-h') : $('proceed'))?.focus({ preventScroll: true }); }, 150);
   } else {
     window.scrollTo({ top: 0 });
   }

@@ -997,7 +997,7 @@ a:hover{text-decoration:underline}
 
 /* The form is four sections long, so the count of what is left stays on
    screen instead of scrolling away at the top. */
-.progress-card{position:sticky;top:10px;z-index:5}
+.progress-card{position:sticky;top:10px;z-index:5;pointer-events:none;}
 
 .section.complete .section-head{border-bottom-color:var(--line)}
 /* Done: the number gives way to a tick, in the green that means "settled"
@@ -1691,3 +1691,7 @@ a:hover{text-decoration:underline}
 .kpi-card:hover {
   background: var(--gray-1);
 }
+
+
+/* iOS Safari touch failsafe */
+.text-input, textarea, select { -webkit-user-select: auto !important; user-select: auto !important; pointer-events: auto !important; touch-action: manipulation; }
