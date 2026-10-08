@@ -170,16 +170,33 @@ function renderStats(d) {
     cards.push(['Employees · salary deduction', d.segments.employee]);
   }
   if (d.breakdown?.category?.counts?.length) {
-    for (const c of d.breakdown.category.counts) cards.push([c.value || 'Unspecified', c.n]);
-  }
+      for (const c of d.breakdown.category.counts) cards.push([c.value || 'Unspecified', c.n]);
+    }
+    if (d.breakdown?.school?.counts?.length) {
+      for (const c of d.breakdown.school.counts) cards.push([c.value || 'Unspecified Affiliation', c.n]);
+    }
   let html = cards.map(([k, v]) =>
-    `<div class="stat"><span class="stat-n">${esc(v)}</span><span class="stat-k">${esc(k)}</span></div>`).join('');
+      `<div class="stat kpi-card" tabindex="0" data-val="${esc(k)}" title="Filter by ${esc(k)}"><span class="stat-n">${esc(v)}</span><span class="stat-k">${esc(k)}</span></div>`).join('');
 
   if (d.needsAttention > 0) {
     html += `<div class="stat warn"><span class="stat-n">${esc(d.needsAttention)}</span>
              <span class="stat-k">need attention</span></div>`;
   }
   $('stats').innerHTML = html;
+    
+    // KPI filtering
+    document.querySelectorAll('.kpi-card').forEach(card => {
+      if(card.dataset.val === 'Total registered' || card.dataset.val === 'Non-employees' || card.dataset.val.includes('salary deduction')) return; // Don't filter by these
+      card.addEventListener('click', () => {
+        $('q').value = card.dataset.val;
+        CURRENT_PAGE = 1;
+        load(card.dataset.val);
+      });
+      card.addEventListener('keydown', (e) => {
+        if(e.key === 'Enter') card.click();
+      });
+      card.style.cursor = 'pointer';
+    });
     
     // KPI filtering
     document.querySelectorAll('.kpi-card').forEach(card => {

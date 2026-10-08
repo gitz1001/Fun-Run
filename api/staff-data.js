@@ -118,8 +118,9 @@ export default async function handler(req, res) {
     // without exporting anything.
     const categoryField = FORM.fields.find((f) => /race|category|distance/i.test(f.label));
     const shirtField = FORM.fields.find((f) => /shirt|size/i.test(f.label));
+    const schoolField = FORM.fields.find((f) => /school|affiliation/i.test(f.label));
     const breakdown = {};
-    for (const [key, field] of [['category', categoryField], ['shirt', shirtField]]) {
+    for (const [key, field] of [['category', categoryField], ['shirt', shirtField], ['school', schoolField]]) {
       if (!field) { breakdown[key] = null; continue; }
       const counts = await db`
         SELECT answers ->> ${field.label} AS value, count(*)::int AS n

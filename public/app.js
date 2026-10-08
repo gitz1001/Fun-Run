@@ -1827,7 +1827,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const nextField = fields[currentIndex + 1];
       nextField.scrollIntoView({ behavior: 'smooth', block: 'center' });
       const input = nextField.querySelector('input:not([type=hidden]),select,textarea');
-      if (input) input.focus({ preventScroll: true });
+      // if (input) input.focus({ preventScroll: true }); // Disabled for iOS UX
     }
   }
 
