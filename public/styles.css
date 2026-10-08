@@ -1612,3 +1612,82 @@ a:hover{text-decoration:underline}
      size is the point of the tile — make the whole thing worth tapping. */
   .race-note{font-size:13px}
 }
+
+/* ---------- Scroll FAB & Credit ---------- */
+.credit {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-3);
+  margin-top: 12px;
+}
+.credit strong { color: var(--ink-2); }
+
+.scroll-fab {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  z-index: 100;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+.scroll-fab.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+.scroll-fab button {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  background: var(--surface);
+  color: var(--accent);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s, background 0.2s;
+}
+.scroll-fab button:hover {
+  transform: scale(1.05);
+  background: var(--gray-1);
+}
+.scroll-fab button:active {
+  transform: scale(0.95);
+}
+@media (max-width: 600px) {
+  .scroll-fab { bottom: 16px; right: 16px; }
+}
+
+/* Pagination */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 24px;
+  padding-bottom: 24px;
+}
+.pagination button {
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--ink-4);
+  background: var(--surface);
+  color: var(--ink-1);
+  font: 500 14px var(--font);
+  cursor: pointer;
+}
+.pagination button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.pagination button:not(:disabled):hover {
+  background: var(--gray-1);
+}
+.kpi-card:hover {
+  background: var(--gray-1);
+}

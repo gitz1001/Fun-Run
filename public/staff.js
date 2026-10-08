@@ -6,6 +6,8 @@ let FIELDS = [];
 let ROWS = [];
 // Which group the dashboard is showing: 'all', 'public' or 'employee'.
 let TYPE = 'all';
+let CURRENT_PAGE = 1;
+const PAGE_SIZE = 50;
 // { label, value } — the answer that marks a registration as an employee's.
 let EMPLOYEE = null;
 // { name, label } — the waiver box on the intro page, recorded per row.
@@ -85,7 +87,7 @@ function wireApp() {
     clearTimeout(t);
     t = setTimeout(() => load($('q').value.trim()), 220);
   });
-  $('clear').addEventListener('click', () => { $('q').value = ''; load(); $('q').focus(); });
+  $('clear').addEventListener('click', () => { $('q').value = ''; CURRENT_PAGE = 1; load(); $('q').focus(); });
   $('refresh').addEventListener('click', () => load($('q').value.trim()));
   $('export').addEventListener('click', exportCsv);
 
@@ -116,6 +118,7 @@ function wireApp() {
 }
 
 async function load(q = '') {
+    const offset = (CURRENT_PAGE - 1) * PAGE_SIZE;
   notice();
   $('count').textContent = 'Loading…';
   let d;
@@ -123,6 +126,8 @@ async function load(q = '') {
     const params = new URLSearchParams();
     if (q) params.set('q', q);
     if (TYPE !== 'all') params.set('type', TYPE);
+      params.set('limit', PAGE_SIZE);
+      if (offset > 0) params.set('offset', offset);
     const res = await fetch('/api/staff-data' + (params.size ? `?${params}` : ''));
     if (res.status === 401) return location.reload();   // session expired
     d = await res.json();
@@ -175,6 +180,22 @@ function renderStats(d) {
              <span class="stat-k">need attention</span></div>`;
   }
   $('stats').innerHTML = html;
+    
+    // KPI filtering
+    document.querySelectorAll('.kpi-card').forEach(card => {
+      if(card.dataset.val === 'Total registered' || card.dataset.val === 'Non-employees' || card.dataset.val.includes('salary deduction')) return; // Don't filter by these
+      card.addEventListener('click', () => {
+        $('q').value = card.dataset.val;
+        CURRENT_PAGE = 1;
+        load(card.dataset.val);
+      });
+      card.addEventListener('keydown', (e) => {
+        if(e.key === 'Enter') card.click();
+      });
+      card.style.cursor = 'pointer';
+    });
+    
+    renderPagination(d);
 }
 
 /** True when this registration is an SISC employee paying by salary deduction. */
@@ -634,4 +655,39 @@ async function doReset() {
     btn.classList.remove('loading');
     gateResetButton();
   }
+}
+
+function renderPagination(d) {
+  let p = $('pagination');
+  if (!p) {
+    p = document.createElement('div');
+    p.id = 'pagination';
+    p.className = 'pagination';
+    $('table-wrap').after(p);
+  }
+  
+  const groupTotal = TYPE === 'all' ? d.total : d.segments?.[TYPE] ?? d.returned;
+  const hasMore = d.returned === PAGE_SIZE; // Rough heuristic, actual count might be needed if exact
+  
+  // We can just rely on returned < PAGE_SIZE to disable NEXT.
+  
+  p.innerHTML = `
+    <button type="button" id="page-prev" ${CURRENT_PAGE === 1 ? 'disabled' : ''}>&laquo; Previous</button>
+    <span>Page ${CURRENT_PAGE}</span>
+    <button type="button" id="page-next" ${!hasMore ? 'disabled' : ''}>Next &raquo;</button>
+  `;
+
+  $('page-prev')?.addEventListener('click', () => {
+    if (CURRENT_PAGE > 1) {
+      CURRENT_PAGE--;
+      load($('q').value.trim());
+    }
+  });
+
+  $('page-next')?.addEventListener('click', () => {
+    if (hasMore) {
+      CURRENT_PAGE++;
+      load($('q').value.trim());
+    }
+  });
 }

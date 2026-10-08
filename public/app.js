@@ -1844,3 +1844,28 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 });
+
+// --- FAB Scrolling ---
+document.addEventListener('DOMContentLoaded', () => {
+  const scrollFab = document.querySelector('.scroll-fab');
+  if (!scrollFab) return;
+
+  const btnUp = document.getElementById('scroll-up');
+  const btnDown = document.getElementById('scroll-down');
+
+  window.addEventListener('scroll', () => {
+    if (window.scrollY > 200) {
+      scrollFab.classList.add('visible');
+    } else {
+      scrollFab.classList.remove('visible');
+    }
+  });
+
+  btnUp.addEventListener('click', () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+
+  btnDown.addEventListener('click', () => {
+    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+  });
+});
