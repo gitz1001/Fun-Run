@@ -657,13 +657,14 @@ async function doReset() {
   }
 }
 
+
 function renderPagination(d) {
   let p = $('pagination');
   if (!p) {
     p = document.createElement('div');
     p.id = 'pagination';
     p.className = 'pagination';
-    $('table-wrap')document.querySelector(\'.table-card\').after(p);
+    document.querySelector('.table-card').after(p);
   }
   
   const groupTotal = TYPE === 'all' ? d.total : d.segments?.[TYPE] ?? d.returned;
