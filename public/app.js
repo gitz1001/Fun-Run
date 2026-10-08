@@ -99,7 +99,18 @@ function showView(name, { silent = false } = {}) {
     if (location.hash !== hash) history.pushState({ view: name }, '', hash);
     window.scrollTo({ top: 0, behavior: 'smooth' });
     // Move focus so keyboard and screen-reader users land in the new screen.
-    setTimeout(() => { (toForm ? $('form-h') : $('proceed'))?.focus({ preventScroll: true }); }, 150);
+    setTimeout(() => { 
+      (toForm ? $('form-h') : $('proceed'))?.focus({ preventScroll: true }); 
+      if (toForm) {
+        // iOS Safari hit-box bug workaround: briefly focus and blur the first field 
+        // to force Safari to calculate its interactive geometry correctly.
+        const firstField = $('f_full_name');
+        if (firstField && !firstField.value) {
+          firstField.focus({ preventScroll: true });
+          firstField.blur();
+        }
+      }
+    }, 250);
   } else {
     window.scrollTo({ top: 0 });
   }
@@ -1231,7 +1242,7 @@ function renderField(f) {
       <input type="hidden" name="${esc(f.name)}" id="${id}" value="">
       <label class="drop" data-drop="${esc(f.name)}">
         <input type="file" id="${id}_picker" class="file-input"
-               accept="image/jpeg,image/png,image/webp,application/pdf"
+               accept="image/jpeg,image/png,image/webp,application/pdf,image/heic,image/heif,.heic,.heif"
                aria-describedby="${esc(describedBy)}">
         <span class="drop-icon" aria-hidden="true">&#8679;</span>
         <span class="drop-main">Choose a file or drag it here</span>
@@ -1597,11 +1608,11 @@ function wireUpload(f) {
 
     const sending = await downscale(file);
 
-    if (sending.type.startsWith('image/') && sending.type !== 'image/webp') {
-      status.textContent = 'This image could not be converted to WebP. Please use JPG, PNG or WEBP.';
+    if (sending.type.startsWith('image/') && sending.type !== 'image/webp' && !sending.type.startsWith('image/hei')) {
+      status.textContent = 'This image could not be converted to WebP. Please use JPG, PNG, WEBP, or HEIC.';
       status.className = 'upload-status bad';
       bar.style.width = '0%';
-      setFieldState(f.name, 'Please use a JPG, PNG or WEBP image.', '');
+      setFieldState(f.name, 'Please use a JPG, PNG, WEBP, or HEIC image.', '');
       return;
     }
 

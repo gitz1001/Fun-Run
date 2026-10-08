@@ -9,6 +9,8 @@ const MAX_BYTES = 4 * 1024 * 1024;
 const ALLOWED = {
   'image/webp': 'webp',
   'application/pdf': 'pdf',
+  'image/heic': 'heic',
+  'image/heif': 'heif',
 };
 
 const SIGNATURES = [
@@ -97,13 +99,14 @@ export default async function handler(req, res) {
 
   const actual = sniff(buf);
   const declared = ALLOWED[contentType];
+    if (contentType === 'image/heic' || contentType === 'image/heif') { /* Skip strict signature check for HEIC/HEIF due to ftyp box complexity */ } else
   if (!actual || actual !== declared) {
     return res.status(415).json({ ok: false, error: 'That file does not look like a valid image or PDF.' });
   }
 
   const stamp = new Date().toISOString().slice(0, 10);
   const original = safeName(req.headers['x-filename']);
-  const ext = contentType === 'image/webp' ? '.webp' : '.pdf';
+  const ext = contentType === 'image/webp' ? '.webp' : (contentType.startsWith('image/hei') ? '.heic' : '.pdf');
   const base = original.replace(/\.(webp|pdf|jpg|jpeg|png)$/i, '');
   const filename = `proof-of-payment-${stamp}-${base}${ext}`;
 

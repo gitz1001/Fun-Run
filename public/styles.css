@@ -575,10 +575,10 @@ body{
 /* ---------- fields ---------- */
 .field{padding:18px 0;border-bottom:1px solid var(--line)}
 .field:last-child,.field.last-shown{border-bottom:0}
-.q{display:block;font-size:15px;font-weight:600;margin:0 0 3px;color:var(--ink)}
+.q{display:block;font-size:15px;font-weight:600;margin:0 0 3px;color:var(--ink);cursor:pointer}
 .req{color:var(--err);margin-left:2px}
 .optional{color:var(--muted);font-weight:400;font-size:13px;margin-left:6px}
-.help{color:var(--muted);font-size:13px;margin:0 0 10px;line-height:1.5}
+.help{color:var(--muted);font-size:13px;margin:0 0 10px;line-height:1.5;cursor:pointer}
 
 input[type=text],input[type=email],input[type=tel],textarea,select{
   width:100%;padding:11px 13px;font:inherit;color:var(--ink);
@@ -1695,3 +1695,5 @@ a:hover{text-decoration:underline}
 
 /* iOS Safari touch failsafe */
 .text-input, textarea, select { -webkit-user-select: auto !important; user-select: auto !important; pointer-events: auto !important; touch-action: manipulation; }
+
+#sections { padding-top: 8px; }
