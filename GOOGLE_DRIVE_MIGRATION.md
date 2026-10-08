@@ -36,7 +36,7 @@ The existing browser upload flow continues to convert/downscale images to WebP b
 
 ## Database
 
-The `proof_url` column holds the app's own authenticated receipt URL, `<site>/api/receipt?id=<Drive file ID>`. The browser submits only the file ID; the server checks it against the `uploads` table and builds the URL itself. Rows written before this hold a `drive.google.com/file/d/...` link instead, which the dashboard still opens.
+The `proof_url` column holds a `drive.google.com/file/d/<Drive file ID>/view` link, as it always has. The browser now submits only the file ID; the server checks it against the `uploads` table and builds the link itself.
 
 Uploads that never became a registration are listed, and with `--fix` deleted, by `npm run sweep`.
 

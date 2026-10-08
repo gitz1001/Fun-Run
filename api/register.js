@@ -7,8 +7,9 @@ import { sendConfirmation, explainMailError, missingEnv } from '../lib/mailer.js
 import { confirmationHtml, confirmationText } from '../lib/template.js';
 import {
   dbConfigured, ensureSchema, saveRegistration, markSheetSynced, markEmailSent,
-  holdUpload, settleUpload, releaseUpload,
+  holdUpload, settleUpload, releaseUpload, uploadKnown, recordUpload, receiptAlreadyUsed,
 } from '../lib/db.js';
+import { driveConfigured, receiptInFolder } from '../lib/google-drive.js';
 import { afterResponse } from '../lib/after-response.js';
 import { receiptFileId, receiptLink } from '../lib/receipts.js';
 import { limited, clientIp } from '../lib/rate-limit.js';
@@ -76,7 +77,7 @@ export default async function handler(req, res) {
     for (const f of FORM.fields) {
       if (f.type !== 'file' || !values[f.name]) continue;
       const fileId = receiptFileId(values[f.name]);
-      if (!fileId || !(await holdUpload(fileId, hold))) {
+      if (!fileId || !(await takeUpload(fileId, hold, ip))) {
         await releaseAll(held, hold);
         return res.status(422).json({
           ok: false,
@@ -85,7 +86,7 @@ export default async function handler(req, res) {
         });
       }
       held.push(fileId);
-      values[f.name] = receiptLink(req, fileId);
+      values[f.name] = receiptLink(fileId);
     }
   } catch (err) {
     console.error('[register] could not check the upload:', err.message);
@@ -185,6 +186,30 @@ export default async function handler(req, res) {
       await markEmailSent(ref, false, explained).catch(() => {});
     }
   });
+}
+
+/**
+ * Takes the upload for this registration.
+ *
+ * Normally that is one statement against the uploads table. The exception is
+ * a runner who attached their receipt just before that table existed and
+ * pressed submit just after: the file is real, but nothing recorded it. It is
+ * recognised by asking Drive whether the id is a file in the receipts folder,
+ * and only when no registration has used it — then it is recorded and taken
+ * like any other. If Drive cannot be asked, the answer is no and the runner
+ * is asked to attach it again, which is all that would have happened anyway.
+ */
+async function takeUpload(fileId, hold, ip) {
+  if (await holdUpload(fileId, hold)) return true;
+  if (await uploadKnown(fileId)) return false;            // known, and already used
+  if (!driveConfigured() || (await receiptAlreadyUsed(fileId))) return false;
+  const there = await receiptInFolder(fileId).catch((err) => {
+    console.error('[register] could not check an unrecorded upload:', err.message);
+    return false;
+  });
+  if (!there) return false;
+  await recordUpload(fileId, ip);
+  return holdUpload(fileId, hold);
 }
 
 async function releaseAll(held, hold) {

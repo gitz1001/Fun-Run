@@ -301,6 +301,12 @@ function waiverProof(r) {
 
 /** The same reading of the privacy consent, which is recorded the same way. */
 function privacyProof(r) {
+  // Rows written before the column existed carry the consent only as an
+  // answer. That is still the runner's answer, just without a time on it.
+  const answered = (r.answers || {})[PRIVACY?.label || 'Data Privacy Consent'];
+  if ((r.privacy_agreed === undefined || r.privacy_agreed === null) && answered) {
+    return { text: String(answered), cls: 'ok', csv: String(answered) };
+  }
   return consentProof(r.privacy_agreed, r.privacy_agreed_at);
 }
 

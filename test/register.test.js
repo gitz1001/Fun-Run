@@ -54,6 +54,14 @@ function standInDatabase() {
       return [{ reference }];
     }
     if (text.includes('UPDATE registrations')) return [];
+    if (text.includes('FROM uploads WHERE file_id')) return state.uploads.has(values[0]) ? [{ known: 1 }] : [];
+    if (text.includes('AS used FROM registrations')) {
+      return state.registrations.some((r) => r.proof_url.includes(values[0])) ? [{ used: 1 }] : [];
+    }
+    if (text.includes('INSERT INTO uploads')) {
+      if (!state.uploads.has(values[0])) state.uploads.set(values[0], null);
+      return [];
+    }
     throw new Error(`stand-in database has no answer for: ${text}`);
   };
   client.query = async () => [];
@@ -106,7 +114,7 @@ test('a receipt this app uploaded is accepted, and the server builds the stored 
   assert.equal(out.status, 200);
   assert.equal(out.json.ok, true);
   const [row] = db.state.registrations;
-  assert.equal(row.proof_url, `https://run.example/api/receipt?id=${FILE}`);
+  assert.equal(row.proof_url, `https://drive.google.com/file/d/${FILE}/view?usp=sharing`);
   assert.equal(row.answers['Proof of payment'], row.proof_url);
   assert.equal(db.state.uploads.get(FILE), row.reference, 'the upload now belongs to the registration');
   assert.deepEqual(network, []);
@@ -140,7 +148,7 @@ test('the link a page from before this change still posts is understood', async 
   }));
 
   assert.equal(out.status, 200);
-  assert.equal(db.state.registrations[0].proof_url, `https://run.example/api/receipt?id=${FILE}`);
+  assert.equal(db.state.registrations[0].proof_url, `https://drive.google.com/file/d/${FILE}/view?usp=sharing`);
 });
 
 test('one receipt cannot be used by a second registration', async () => {
@@ -194,6 +202,35 @@ test('both confirmations are required', async () => {
   assert.equal((await submit(answers({ waiver_agreed: false }))).status, 422);
   assert.equal((await submit(answers({ privacy_agreed: undefined }))).status, 422);
   assert.equal(db.state.uploads.get(FILE), null, 'a rejected form does not use up the receipt');
+});
+
+test('a receipt attached just before the uploads table existed is recognised once', async () => {
+  // Not in the table, but Drive confirms it is a file in the receipts folder.
+  const asked = [];
+  Object.assign(process.env, { GOOGLE_CLIENT_ID: 'id', GOOGLE_CLIENT_SECRET: 'secret', GOOGLE_REFRESH_TOKEN: 'token' });
+  const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  globalThis.fetch = async (url, options = {}) => {
+    asked.push(`${options.method || 'GET'} ${String(url).split('?')[0]}`);
+    if (String(url).includes('oauth2.googleapis.com/token')) return json({ access_token: 'access', expires_in: 3600 });
+    if (String(url).includes(`/files/${FILE}`)) {
+      return json({ id: FILE, trashed: false, mimeType: 'image/jpeg', parents: [process.env.GOOGLE_DRIVE_FOLDER_ID] });
+    }
+    // Anything else in the Drive is not a receipt: not found.
+    return new Response('{}', { status: 404 });
+  };
+
+  try {
+    assert.equal((await submit(answers())).status, 200);
+    assert.equal(db.state.uploads.get(FILE), db.state.registrations[0].reference);
+    // The same file cannot then be registered with again...
+    assert.equal((await submit(answers({ full_name: 'Somebody Else' }))).status, 422);
+    // ...and a file that is not in the receipts folder is never adopted.
+    assert.equal((await submit(answers({ proof_of_payment: 'SOME_OTHER_DRIVE_FILE_0123456789' }))).status, 422);
+    assert.equal(db.state.registrations.length, 1);
+    assert.ok(asked.every((line) => line.startsWith('GET ') || line.startsWith('POST https://oauth2')), `only reads: ${asked}`);
+  } finally {
+    for (const k of ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_REFRESH_TOKEN']) delete process.env[k];
+  }
 });
 
 test('deleteDriveFile takes a bare file id and never the receipts folder', async () => {

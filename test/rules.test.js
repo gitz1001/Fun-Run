@@ -64,9 +64,8 @@ test('receiptFileId reads the three spellings and nothing else', () => {
 });
 
 test('receiptLink round-trips, and only receipt links count as receipts', () => {
-  process.env.SITE_URL = 'https://run.example/';
-  const link = receiptLink({}, ID);
-  assert.equal(link, `https://run.example/api/receipt?id=${ID}`);
+  const link = receiptLink(ID);
+  assert.equal(link, `https://drive.google.com/file/d/${ID}/view?usp=sharing`);
   assert.equal(receiptFileId(link), ID);
   assert.ok(isReceiptLink(link));
   assert.ok(!isReceiptLink('https://evil.example/login'));

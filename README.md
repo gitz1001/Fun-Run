@@ -135,16 +135,18 @@ The rules that keep this safe:
 
 * The browser submits only the **Drive file id**. `api/register.js` accepts it
   only if `api/drive-upload.js` recorded it in the `uploads` table and no other
-  registration has used it. The link that is stored is built by the server.
+  registration has used it. The link that is stored — the same Google Drive
+  link as before — is built by the server from that checked id.
 * **No web request deletes from Drive.** A registration that fails to save
   frees its receipt so the runner can simply submit again.
-* `/api/receipt` serves only ids in `uploads`, to signed-in staff.
+* `/api/receipt?id=…` is an alternative way to open a receipt for signed-in
+  staff who have no access to the Drive folder. It serves only ids in `uploads`.
 * Uploads that never became a registration are listed by `npm run sweep` and
   deleted with `npm run sweep -- --fix` once they are a day old. That command
   deletes only ids from `uploads` and never one a registration refers to.
 
 The confirmation email is a copy of the runner's own answers. The receipt is
-shown there as "Received", since the stored link is for staff.
+shown there as "Received", since the Drive folder is private to staff.
 
 ---
 
