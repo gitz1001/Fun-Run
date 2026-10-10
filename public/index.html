@@ -382,6 +382,9 @@ We run because every step can make a difference.
           or
           <a href="mailto:sary_escurel@southville.edu.ph">sary_escurel@southville.edu.ph</a>
         </p>
+        <p class="backup" style="margin-bottom: 12px;">
+          <span class="backup-q">For the best experience and compatibility, we highly recommend using <strong>Google Chrome</strong>.</span>
+        </p>
         <p class="backup">
           <span class="backup-q">Experiencing errors or can’t register?</span>
           <a class="backup-link" href="https://docs.google.com/forms/d/19CV9McjnSy8ZXVHdcJ_9Zj4GqXZDjpWOQZUbYP-2Iig/viewform" target="_blank" rel="noopener noreferrer">
@@ -793,6 +796,27 @@ We run because every step can make a difference.
           Artwork is indicative; printed colours may vary slightly.
           The size chart lives on the <strong>Shirt size</strong> question.
         </p>
+      </div>
+    </dialog>
+
+    <!-- custom error modal -->
+    <dialog id="error-modal" class="modal" aria-labelledby="error-title">
+      <div class="modal-head">
+        <div>
+          <h2 id="error-title" style="color: var(--error);">Registration Notice</h2>
+        </div>
+        <button type="button" class="modal-close" id="error-close" aria-label="Close">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none"
+               stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+            <path d="M6 6l12 12M18 6L6 18"/>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p id="error-msg" style="white-space: pre-line; margin-bottom: 24px;"></p>
+        <div style="text-align: center;">
+          <button type="button" class="btn" id="error-ok">Okay</button>
+        </div>
       </div>
     </dialog>
 

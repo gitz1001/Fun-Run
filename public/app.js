@@ -35,6 +35,7 @@ async function init() {
   wireViews();
   wireCauses();
   wireWhy();
+  wireErrorModal();
   wireAgreement();
 
   try {
@@ -175,6 +176,25 @@ function wireCauses() {
 
 function wireWhy() {
   wireModal('why-modal', 'why-open', 'why-close');
+}
+
+/* ---------- custom error modal ---------- */
+
+function wireErrorModal() {
+  const modal = wireModal('error-modal', null, 'error-close');
+  const okBtn = $('error-ok');
+  if (okBtn && modal) {
+    okBtn.addEventListener('click', () => modal.close());
+  }
+}
+
+function showErrorModal(msg) {
+  const modal = $('error-modal');
+  const msgEl = $('error-msg');
+  if (modal && msgEl) {
+    msgEl.textContent = msg;
+    openModal(modal);
+  }
 }
 
 /* ---------- the waiver agreement ---------- */
@@ -1805,15 +1825,26 @@ async function onSubmit(e) {
   const v = values();
   let bad = 0;
   let badInPanel = 0;
+  let runnerDetailsError = false;
   for (const f of SCHEMA.fields) {
     const msg = checkField(f, v[f.name], v);
-    if (msg) { bad++; if (f.panel) badInPanel++; }
+    if (msg) { 
+      bad++; 
+      if (f.panel) badInPanel++; 
+      if (f.section === 'Runner details') runnerDetailsError = true;
+    }
     setFieldState(f.name, msg, v[f.name]);
   }
   refreshSdSummary();
   if (bad) {
-    banner(`<strong>${bad} ${bad === 1 ? 'answer needs' : 'answers need'} your attention.</strong>
-            Please check the highlighted ${bad === 1 ? 'question' : 'questions'} below.`);
+    banner(`<strong>${bad} ${bad === 1 ? 'answer needs' : 'answers need'} your attention.</strong><br>
+            Please fill up all highlighted fields below first.`);
+            
+    let alertMsg = 'Something went wrong. Please fill up other fields first or use a different browser like Chrome.';
+    if (runnerDetailsError) {
+      alertMsg += '\n\nTip: If you are having trouble typing in the Runner details section, try filling up the other details first.';
+    }
+    showErrorModal(alertMsg);
     // An unanswered panel question sits behind a closed dialog, so scrolling
     // to it would land on nothing. Reopen the panel instead.
     if (badInPanel && bad === badInPanel) openSd();
@@ -1839,6 +1870,7 @@ async function onSubmit(e) {
   } catch {
     resetButton();
     banner('Network error. Your registration was not sent, so please try again.');
+    showErrorModal('Something went wrong. Please fill up other fields first or use a different browser like Chrome.');
     return;
   }
   resetButton();
@@ -1863,6 +1895,7 @@ async function onSubmit(e) {
       focusFirstInvalid();
     } else {
       banner(esc(data.error || 'Something went wrong. Please try again.'));
+      showErrorModal('Something went wrong. Please fill up other fields first or use a different browser like Chrome.');
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
     return;
