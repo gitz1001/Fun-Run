@@ -28,7 +28,7 @@ const { sql, dbConfigured, markSheetSynced, markEmailSent } = await import('../l
 const { appendRegistration, sheetsConfigured } = await import('../lib/sheets.js');
 const { sendConfirmation, explainMailError, missingEnv } = await import('../lib/mailer.js');
 const { confirmationHtml, confirmationText } = await import('../lib/template.js');
-const { FORM } = await import('../lib/form-schema.js');
+const { FORM, AGREEMENT, PRIVACY } = await import('../lib/form-schema.js');
 
 const APP_NAME = process.env.APP_NAME || 'Southville Run For A Cause 2026';
 
@@ -80,7 +80,8 @@ for (const r of rows) {
     const to = r.email || labelled[FORM.fields.find((f) => f.type === 'email')?.label];
     if (!to) { mailBad++; console.log(`    ${r.reference}  email  SKIPPED — no address on file`); continue; }
 
-    const answers = FORM.fields.map((f) => [f.label, labelled[f.label] ?? '']);
+    // The same rows the original email carried, the two consents included.
+    const answers = [...FORM.fields, AGREEMENT, PRIVACY].map((f) => [f.label, labelled[f.label] ?? '']);
     const when = new Date(r.created_at).toLocaleString('en-PH', {
       dateStyle: 'long', timeStyle: 'short', timeZone: 'Asia/Manila',
     });

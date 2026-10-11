@@ -121,8 +121,11 @@ const server = http.createServer(async (req, res) => {
     if (existsSync(envPath)) {
       let env = readFileSync(envPath, 'utf8');
       const set = (k, v) => {
-        const re = new RegExp('^' + k + '=.*$', 'm');
-        env = re.test(env) ? env.replace(re, k + '=' + v) : env.trimEnd() + '\n' + k + '=' + v + '\n';
+        // Every line for the name, not only the first: an older
+        // GOOGLE_REFRESH_TOKEN left further down the file would otherwise
+        // still be there to be read. A function, so "$" in a value stays "$".
+        const re = new RegExp('^' + k + '=.*$', 'gm');
+        env = re.test(env) ? env.replace(re, () => k + '=' + v) : env.trimEnd() + '\n' + k + '=' + v + '\n';
       };
       set('GOOGLE_CLIENT_ID', clientId);
       set('GOOGLE_CLIENT_SECRET', clientSecret);

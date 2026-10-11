@@ -97,20 +97,15 @@ function showView(name, { silent = false } = {}) {
   if (!silent) {
     const hash = toForm ? '#register' : '#';
     if (location.hash !== hash) history.pushState({ view: name }, '', hash);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    // Instant, not smooth. On an iPhone a tap that lands while the page is
+    // still gliding only stops the glide, so the first tap on "Full name"
+    // was swallowed and the field looked dead.
+    window.scrollTo({ top: 0 });
     // Move focus so keyboard and screen-reader users land in the new screen.
-    setTimeout(() => { 
-      (toForm ? $('form-h') : $('proceed'))?.focus({ preventScroll: true }); 
-      if (toForm) {
-        // iOS Safari hit-box bug workaround: briefly focus and blur the first field 
-        // to force Safari to calculate its interactive geometry correctly.
-        const firstField = $('f_full_name');
-        if (firstField && !firstField.value) {
-          firstField.focus({ preventScroll: true });
-          firstField.blur();
-        }
-      }
-    }, 250);
+    // Only ever a heading or a button: focusing an input from here and
+    // blurring it again, as this once did, opens and cancels the iOS keyboard
+    // and leaves Safari ignoring the next tap on that same field.
+    (toForm ? $('form-h') : $('proceed'))?.focus({ preventScroll: true });
   } else {
     window.scrollTo({ top: 0 });
   }
@@ -1314,8 +1309,19 @@ const isPhone = (f) => /number|phone|contact|mobile/i.test(f.label)
 
 /* ---------- validation ---------- */
 
+/**
+ * A number filled in from iOS Contacts arrives wrapped in invisible direction
+ * marks and spaced with no-break spaces, which fail the format check with
+ * nothing on screen to explain why. lib/form-schema.js drops the same ones.
+ */
+const tidy = (v) => typeof v !== 'string' ? v : v
+  .replace(/[\u200B-\u200F\u202A-\u202E\u2060-\u2069\uFEFF]/g, '')
+  .replace(/[\u00A0\u2007\u202F]/g, ' ');
+
 function values() {
-  return Object.fromEntries(new FormData($('form')).entries());
+  const out = {};
+  for (const [k, v] of new FormData($('form')).entries()) out[k] = tidy(v);
+  return out;
 }
 
 /**
@@ -1940,7 +1946,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const form = document.querySelector('form');
   if (!form) return;
 
+  // Not on a touch screen. There the page sliding away under the finger is
+  // the problem rather than the help: iOS drops a tap made during a smooth
+  // scroll, and its select picker reports a change while it is still open.
+  const touch = window.matchMedia?.('(pointer: coarse)').matches === true;
+
   function advanceToNextField(currentElement) {
+    if (touch) return;
     if (currentElement.checkValidity && !currentElement.checkValidity()) return;
     const fields = Array.from(document.querySelectorAll('.field:not([hidden])'));
     const currentWrap = currentElement.closest('.field');

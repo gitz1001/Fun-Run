@@ -24,6 +24,9 @@ const WANTED = [
   'GOOGLE_CLIENT_ID',
   'GOOGLE_CLIENT_SECRET',
   'GOOGLE_REFRESH_TOKEN',
+  // Without this one production has no folder to upload to, and every
+  // receipt is turned away with "File uploads are not set up yet".
+  'GOOGLE_DRIVE_FOLDER_ID',
   'SHEET_ID',
   'SHEET_TAB',
   'STAFF_PASSWORD',
@@ -31,6 +34,7 @@ const WANTED = [
   'SITE_URL',
   'APP_NAME',
   'MAIL_FROM_NAME',
+  'ADMIN_COPY',
 ];
 
 const envPath = path.join(root, '.env.local');
@@ -42,7 +46,10 @@ if (!existsSync(envPath)) {
 const values = {};
 for (const line of readFileSync(envPath, 'utf8').split('\n')) {
   const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
-  if (m) values[m[1]] = m[2].trim().replace(/^["']|["']$/g, '');
+  // The first line for a name wins, as it does in doctor and replay. This
+  // used to take the last, so a file holding the same name twice passed
+  // "npm run doctor" on one token and deployed the other.
+  if (m && !(m[1] in values)) values[m[1]] = m[2].trim().replace(/^["']|["']$/g, '');
 }
 
 const ready = WANTED.filter((k) => values[k]);
