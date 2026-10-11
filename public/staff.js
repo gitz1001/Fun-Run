@@ -16,6 +16,9 @@ let EMPLOYEE = null;
 let AGREEMENT = null;
 // { name, label } — the privacy consent, recorded the same way.
 let PRIVACY = null;
+// The answer key that says which page a registration was made on. Rows from
+// before it was recorded have none, and show nothing rather than a guess.
+const SOURCE_LABEL = 'Registered via';
 // { field, value } while one of the figures at the top is filtering the table.
 let FILTER = null;
 // The last /api/staff-data payload, so the reset dialog can name the figures
@@ -378,6 +381,7 @@ function showDetail(r) {
         <td><span class="pill ${privacy.cls}">${esc(privacy.text)}</span></td>
       </tr>
       <tr><th>Registered</th><td>${esc(when(r.created_at))}</td></tr>
+      ${a[SOURCE_LABEL] ? `<tr><th>${esc(SOURCE_LABEL)}</th><td>${esc(a[SOURCE_LABEL])}</td></tr>` : ''}
     </tbody></table>`;
 
   const d = $('detail');
@@ -496,7 +500,7 @@ function buildCsv(rows, columns) {
   // Waiver is a fixed column on every export, not one of the question columns:
   // it is the proof of acceptance, and it should not drop out of a file
   // because a tab exports a narrow set of questions.
-  const header = ['Reference', 'Registered', 'Type', 'Waiver', 'Waiver accepted at', 'Privacy consent', ...columns];
+  const header = ['Reference', 'Registered', 'Type', SOURCE_LABEL, 'Waiver', 'Waiver accepted at', 'Privacy consent', ...columns];
   const lines = [header.map(csvCell).join(',')];
 
   for (const r of rows) {
@@ -505,6 +509,7 @@ function buildCsv(rows, columns) {
       csvCell(r.reference),
       csvCell(csvDate(r.created_at)),
       csvCell(isEmployee(r) ? 'Employee' : 'Non-employee'),
+      csvCell(a[SOURCE_LABEL] ?? ''),
       csvCell(waiverProof(r).csv),
       csvCell(r.waiver_agreed_at ? csvDate(r.waiver_agreed_at) : ''),
       csvCell(privacyProof(r).csv),
@@ -529,7 +534,7 @@ function backupColumns(rows) {
   const columns = FIELDS.map((f) => f.label);
   // buildCsv already writes the waiver as a fixed column, so the copy of it
   // in the answers blob would only repeat itself here.
-  const seen = new Set([...columns, AGREEMENT?.label || 'Waiver of Liability', PRIVACY?.label || 'Data Privacy Consent']);
+  const seen = new Set([...columns, SOURCE_LABEL, AGREEMENT?.label || 'Waiver of Liability', PRIVACY?.label || 'Data Privacy Consent']);
   for (const r of rows) {
     for (const key of Object.keys(r.answers || {})) {
       if (seen.has(key)) continue;

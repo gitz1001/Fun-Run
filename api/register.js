@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import {
   FORM, validate, isActive, cleanAnswer, AGREEMENT, PRIVACY, waiverState, privacyState,
+  SOURCE, sourceOf, submissionIdOf,
 } from '../lib/form-schema.js';
 import { appendRegistration } from '../lib/sheets.js';
 import { sendConfirmation, explainMailError, missingEnv } from '../lib/mailer.js';
@@ -8,6 +9,7 @@ import { confirmationHtml, confirmationText } from '../lib/template.js';
 import {
   dbConfigured, ensureSchema, saveRegistration, markSheetSynced, markEmailSent,
   holdUpload, settleUpload, releaseUpload, uploadKnown, recordUpload, receiptAlreadyUsed,
+  findBySubmission,
 } from '../lib/db.js';
 import { driveConfigured, receiptInFolder } from '../lib/google-drive.js';
 import { afterResponse } from '../lib/after-response.js';
@@ -72,13 +74,25 @@ export default async function handler(req, res) {
   // and nothing here ever deletes from Drive.
   const hold = `hold:${randomBytes(9).toString('hex')}`;
   const held = [];
+  // A page that lost its connection after pressing submit cannot tell whether
+  // it was registered, so it sends the same submission again under the same
+  // id. That is answered with the registration already made — not a second
+  // one, and not "your receipt has been used", which is all the upload check
+  // below could otherwise say about a receipt the first copy took.
+  const submissionId = submissionIdOf(sent);
+  const source = sourceOf(sent);
   try {
     await ensureSchema();
+    const made = await findBySubmission(submissionId);
+    if (made) return res.status(200).json(alreadyRegistered(made));
     for (const f of FORM.fields) {
       if (f.type !== 'file' || !values[f.name]) continue;
       const fileId = receiptFileId(values[f.name]);
       if (!fileId || !(await takeUpload(fileId, hold, ip))) {
         await releaseAll(held, hold);
+        // The first copy may have finished while this one was being checked.
+        const since = await findBySubmission(submissionId);
+        if (since) return res.status(200).json(alreadyRegistered(since));
         return res.status(422).json({
           ok: false,
           errors: [`${f.label} must be uploaded before submitting.`],
@@ -114,6 +128,10 @@ export default async function handler(req, res) {
   answers.push([AGREEMENT.label, agreed === true ? AGREEMENT.agreed : '']);
   answers.push([PRIVACY.label, privacy === true ? PRIVACY.agreed : '']);
   const labelled = Object.fromEntries(answers);
+  // For staff, not for the runner: it reaches the database, the sheet and the
+  // dashboard through `labelled`, and stays out of `answers`, which is what
+  // the confirmation email is written from.
+  labelled[SOURCE.label] = SOURCE.values[source];
 
   // --- 2. record the registration — the database decides -------------
   // Postgres is the source of truth. If this fails, nobody is registered and
@@ -121,7 +139,13 @@ export default async function handler(req, res) {
   // runner can press submit again without attaching it a second time.
   let ref;
   try {
-    ({ reference: ref } = await saveRegistration({ values, labelled, ip, agreed, privacy }));
+    const saved = await saveRegistration({ values, labelled, ip, agreed, privacy, source, submissionId });
+    if (saved.duplicate) {
+      // Two copies of one submission arrived together and the other won.
+      await releaseAll(held, hold);
+      return res.status(200).json(alreadyRegistered(saved));
+    }
+    ref = saved.reference;
   } catch (err) {
     console.error('[register] database write failed:', err.message);
     await releaseAll(held, hold);
@@ -210,6 +234,15 @@ async function takeUpload(fileId, hold, ip) {
   if (!there) return false;
   await recordUpload(fileId, ip);
   return holdUpload(fileId, hold);
+}
+
+/**
+ * The answer to a submission that has already been recorded: the reference it
+ * was given the first time. The sheet row and the email belong to that first
+ * copy, so nothing is mirrored or sent again here.
+ */
+function alreadyRegistered(made) {
+  return { ok: true, ref: made.reference, repeated: true, mailSent: Boolean(made.email_sent), mailQueued: true };
 }
 
 async function releaseAll(held, hold) {

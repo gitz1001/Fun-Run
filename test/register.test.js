@@ -28,7 +28,11 @@ function standInDatabase() {
   const state = { uploads: new Map(), registrations: [], failInsert: false };
   const client = async (strings, ...values) => {
     const text = strings.join('?').replace(/\s+/g, ' ');
-    if (text.includes('to_regclass')) return [{ uploads: true, limits: true, privacy: true }];
+    if (text.includes('to_regclass')) return [{ uploads: true, limits: true, privacy: true, submission: true }];
+    if (text.includes('WHERE submission_id')) {
+      const made = state.registrations.find((r) => r.submission_id === values[0]);
+      return made ? [{ reference: made.reference, email_sent: false }] : [];
+    }
     if (text.includes('INSERT INTO rate_limits')) return [{ count: 1 }];
     if (text.includes('DELETE FROM rate_limits')) return [];
     if (text.includes('UPDATE uploads SET reference = NULL')) {
@@ -50,7 +54,13 @@ function standInDatabase() {
     if (text.includes('INSERT INTO registrations')) {
       if (state.failInsert) throw new Error('relation "registrations" is on fire');
       const [reference, full_name, email, proof_url, answers] = values;
-      state.registrations.push({ reference, full_name, email, proof_url, answers: JSON.parse(answers) });
+      const [source, submission_id] = values.slice(-2);
+      if (submission_id && state.registrations.some((r) => r.submission_id === submission_id)) {
+        throw Object.assign(new Error('duplicate key value violates unique constraint'), { code: '23505' });
+      }
+      state.registrations.push({
+        reference, full_name, email, proof_url, answers: JSON.parse(answers), source, submission_id,
+      });
       return [{ reference }];
     }
     if (text.includes('UPDATE registrations')) return [];
@@ -238,4 +248,81 @@ test('deleteDriveFile takes a bare file id and never the receipts folder', async
   assert.equal(await deleteDriveFile(process.env.GOOGLE_DRIVE_FOLDER_ID), false);
   assert.equal(await deleteDriveFile(''), false);
   assert.deepEqual(network, []);
+});
+
+const SUBMISSION = 'sub_0123456789abcdefghij';
+
+test('a submission sent twice is one registration, answered with the same reference', async () => {
+  // The phone lost its connection after the first copy was saved, so the page
+  // sent it again. The receipt is already taken by then: without the id this
+  // came back as "must be uploaded", and the runner registered a second time.
+  db.state.uploads.set(FILE, null);
+  const first = await submit(answers({ submission_id: SUBMISSION }));
+  const again = await submit(answers({ submission_id: SUBMISSION }));
+
+  assert.equal(first.status, 200);
+  assert.equal(again.status, 200);
+  assert.equal(again.json.ok, true);
+  assert.equal(again.json.ref, first.json.ref);
+  assert.equal(again.json.repeated, true);
+  assert.equal(db.state.registrations.length, 1);
+  assert.equal(db.state.uploads.get(FILE), first.json.ref, 'the receipt still belongs to the first copy');
+});
+
+test('two copies arriving together still make one registration', async () => {
+  // Neither copy finds the other on the way in; the database's unique index
+  // is what stops the second, and it is answered rather than failed.
+  const body = () => answers({
+    payment_method: 'Employee', proof_of_payment: '',
+    sd_full_name: 'Juan Dela Cruz', sd_employee_number: '2019-0431',
+    sd_department: 'Alumni Department', sd_authorization: 'DELA CRUZ, JUAN',
+    submission_id: SUBMISSION,
+  });
+  const [a, b] = await Promise.all([submit(body()), submit(body())]);
+
+  assert.equal(a.status, 200);
+  assert.equal(b.status, 200);
+  assert.equal(a.json.ref, b.json.ref);
+  assert.equal(db.state.registrations.length, 1);
+});
+
+test('a different submission id is a different registration', async () => {
+  const employee = (id) => answers({
+    payment_method: 'Employee', proof_of_payment: '',
+    sd_full_name: 'Juan Dela Cruz', sd_employee_number: '2019-0431',
+    sd_department: 'Alumni Department', sd_authorization: 'DELA CRUZ, JUAN',
+    submission_id: id,
+  });
+  const a = await submit(employee('sub_aaaaaaaaaaaaaaaaaaaa'));
+  const b = await submit(employee('sub_bbbbbbbbbbbbbbbbbbbb'));
+
+  assert.notEqual(a.json.ref, b.json.ref);
+  assert.equal(db.state.registrations.length, 2);
+});
+
+test('a malformed submission id is ignored, not stored', async () => {
+  db.state.uploads.set(FILE, null);
+  const out = await submit(answers({ submission_id: 'x' }));
+
+  assert.equal(out.status, 200);
+  assert.equal(db.state.registrations[0].submission_id, null);
+});
+
+test('the page a registration came from is recorded, and only a known one is believed', async () => {
+  const employee = (over) => answers({
+    payment_method: 'Employee', proof_of_payment: '',
+    sd_full_name: 'Juan Dela Cruz', sd_employee_number: '2019-0431',
+    sd_department: 'Alumni Department', sd_authorization: 'DELA CRUZ, JUAN',
+    ...over,
+  });
+  await submit(employee({ source: 'chat' }));
+  await submit(employee({}));
+  await submit(employee({ source: '<script>' }));
+
+  const [chat, form, odd] = db.state.registrations;
+  assert.equal(chat.source, 'chat');
+  assert.equal(chat.answers['Registered via'], 'Chat assistant');
+  assert.equal(form.source, 'form');
+  assert.equal(form.answers['Registered via'], 'Registration form');
+  assert.equal(odd.source, 'form');
 });
