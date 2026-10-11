@@ -32,6 +32,13 @@ const BANK = {
 };
 
 let SCHEMA = null;
+/**
+ * The advisory's own words, read out of the privacy page so they are shown in
+ * the conversation. That page ends in an "I Acknowledge" button that leads to
+ * the registration page — right for the form, but from here it carried the
+ * runner away from the chat they were in the middle of.
+ */
+let ADVISORY = '';
 /** What is being asked right now: { type, field?, sub? }. */
 let current = null;
 let busy = false;
@@ -218,9 +225,12 @@ const RICH = {
     <p class="cb-note">Do you accept the Waiver of Liability, and agree to its terms for the
       Southville Run For A Cause 2026?</p>`,
   privacy: () => `
-    <p>Next, the <strong>Data Privacy Advisory</strong>. It explains what we collect and why.</p>
-    <a class="cb-doc" href="${PRIVACY_PAGE}" target="_blank" rel="noopener">
-      <span>Data Privacy Advisory<small>Opens in a new tab</small></span></a>
+    <p>Next, the <strong>Data Privacy Advisory</strong>. Please read it:</p>
+    ${ADVISORY
+      ? `<div class="cb-advisory" tabindex="0">${esc(ADVISORY)}</div>`
+      // Only if the advisory could not be loaded: the page itself, as before.
+      : `<a class="cb-doc" href="${PRIVACY_PAGE}" target="_blank" rel="noopener">
+           <span>Data Privacy Advisory<small>Opens in a new tab — come back to this tab afterwards</small></span></a>`}
     <p class="cb-note">Do you consent to the collection and processing of your personal data for
       this registration?</p>`,
   contact: () => `<p>For any questions, you can email us at ${
@@ -887,10 +897,20 @@ async function start() {
   if (started) return;
   started = true;
   const loading = bubble('b', 'One moment…');
+  // Alongside the questions, and never in their way: without the advisory's
+  // text the chat still works, and links to the page instead.
+  const advisory = fetch(PRIVACY_PAGE)
+    .then((r) => (r.ok ? r.text() : ''))
+    .then((html) => {
+      const body = new DOMParser().parseFromString(html, 'text/html').querySelector('.advisory-content');
+      return (body?.textContent || '').replace(/[ \t]+/g, ' ').replace(/\s*\n\s*/g, '\n').trim();
+    })
+    .catch(() => '');
   try {
     const res = await fetch('/api/schema');
     if (!res.ok) throw new Error(String(res.status));
     SCHEMA = await res.json();
+    ADVISORY = await advisory;
   } catch {
     loading.remove();
     current = { type: 'failed' };

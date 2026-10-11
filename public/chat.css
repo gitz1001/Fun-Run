@@ -102,6 +102,16 @@ html.cb-has-launch .scroll-fab{bottom:84px}
 }
 .cb-doc small{display:block;font-weight:400;color:var(--muted);font-size:12px}
 
+/* The privacy advisory, read where it is asked about. Long, so it scrolls
+   in its own box rather than pushing the question off the screen. */
+.cb-advisory{
+  max-height:210px;overflow-y:auto;margin:8px 0;padding:10px 12px;
+  border:1px solid var(--line-2);border-radius:10px;background:var(--bg);
+  font-size:13.5px;line-height:1.55;white-space:pre-line;
+  -webkit-overflow-scrolling:touch;overscroll-behavior:contain;
+}
+.cb-advisory:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring)}
+
 .cb-dl{margin:0;display:grid;gap:8px}
 .cb-dl dt{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:700}
 .cb-dl dd{margin:0;font-weight:500}
