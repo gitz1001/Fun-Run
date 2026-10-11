@@ -32,6 +32,9 @@
 .cb-launch:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring),0 10px 28px -8px rgba(16,16,20,.45)}
 .cb-launch svg{flex:0 0 auto}
 .cb-launch[hidden]{display:none}
+/* The registration page has scroll buttons in the same corner. While the chat
+   button is showing they sit above it instead of underneath it. */
+html.cb-has-launch .scroll-fab{bottom:84px}
 
 /* ---------- panel ---------- */
 .cb-panel{
@@ -208,6 +211,7 @@
   }
   @supports (height:100dvh){ .cb-panel{height:100dvh} }
   .cb-launch{right:16px;bottom:calc(16px + env(safe-area-inset-bottom))}
+  html.cb-has-launch .scroll-fab{bottom:calc(78px + env(safe-area-inset-bottom))}
   .cb-head{padding-top:calc(12px + env(safe-area-inset-top))}
   html.cb-lock,html.cb-lock body{overflow:hidden}
   .cb-msg{max-width:90%}

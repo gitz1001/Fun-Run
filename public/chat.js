@@ -279,6 +279,9 @@ function redraw() {
 /** Tap-to-answer buttons. Each is { label, value, style?, hint? }. */
 function chips(list) {
   quick.textContent = '';
+  // New buttons appear exactly where the old ones were, so the second half of
+  // a double tap would land on one and answer a question nobody has read yet.
+  const live = Date.now() + 350;
   for (const c of list) {
     const b = document.createElement('button');
     b.type = 'button';
@@ -289,7 +292,7 @@ function chips(list) {
       small.textContent = ` · ${c.hint}`;
       b.append(small);
     }
-    b.addEventListener('click', () => { if (!busy) answer(c.value, c.label, true); });
+    b.addEventListener('click', () => { if (!busy && Date.now() >= live) answer(c.value, c.label, true); });
     quick.append(b);
   }
   toEnd();
@@ -933,7 +936,7 @@ window.addEventListener('resize', fit);
 
 function open() {
   panel.hidden = false;
-  launch.hidden = true;
+  placeLaunch();
   launch.setAttribute('aria-expanded', 'true');
   document.documentElement.classList.add('cb-lock');
   fit();
@@ -942,12 +945,26 @@ function open() {
 }
 function close() {
   panel.hidden = true;
-  launch.hidden = false;
+  placeLaunch();
   launch.setAttribute('aria-expanded', 'false');
   document.documentElement.classList.remove('cb-lock');
   fit();
-  launch.focus({ preventScroll: true });
+  if (!launch.hidden) launch.focus({ preventScroll: true });
 }
+
+/**
+ * On the registration page the button is offered on the intro only. Once the
+ * form itself is on screen it is hidden: a floating button over a form is one
+ * more thing for a thumb to hit instead of a field, and somebody already
+ * filling the form in has chosen how they are registering.
+ */
+const formView = document.getElementById('view-form');
+function placeLaunch() {
+  launch.hidden = !panel.hidden || Boolean(formView && !formView.hidden);
+  // Lets chat.css lift the page's own scroll buttons clear of this one.
+  document.documentElement.classList.toggle('cb-has-launch', !launch.hidden);
+}
+if (formView) new MutationObserver(placeLaunch).observe(formView, { attributes: true, attributeFilter: ['hidden'] });
 
 launch.addEventListener('click', open);
 document.getElementById('cb-start')?.addEventListener('click', open);
@@ -988,4 +1005,5 @@ area.addEventListener('keydown', (e) => {
   compose.requestSubmit ? compose.requestSubmit() : compose.dispatchEvent(new Event('submit', { cancelable: true }));
 });
 
+placeLaunch();
 if (document.body.hasAttribute('data-chat-open')) open();
