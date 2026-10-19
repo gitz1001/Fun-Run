@@ -31,6 +31,18 @@ const BANK = {
   image: '/payment/bank_transfer.png',
 };
 
+/** The race poster the main page shows: every distance, with its fee. */
+const RACE_POSTER = '/race/race-categories.png';
+/** Each distance's shirt, as the main page names and pictures it. */
+const JERSEYS = {
+  '1K': { slug: '1k', colourway: 'Classic white' },
+  '3K': { slug: '3k', colourway: 'Signal red' },
+  '5K': { slug: '5k', colourway: 'Emerald green' },
+  '10K': { slug: '10k', colourway: 'Deep violet' },
+};
+/** The salary-deduction terms, as the main page states them. */
+const DEDUCTION_TERMS = 'The registration fee is divided into three (3) equal salary deductions, starting November 15, 2026.';
+
 let SCHEMA = null;
 /**
  * The advisory's own words, read out of the privacy page so they are shown in
@@ -237,13 +249,24 @@ const RICH = {
     CONTACTS.map((c) => `<a href="mailto:${c}">${c}</a>`).join(' or ')}.</p>`,
   bank: () => `
     <p><strong>Bank transfer details</strong></p>
-    <dl class="cb-dl">
-      <div><dt>Bank name</dt><dd>${esc(BANK.bank)}</dd></div>
-      <div><dt>Account name</dt><dd>${esc(BANK.name)}</dd></div>
-      <div><dt>Account number</dt><dd class="cb-acct"><b>${esc(BANK.number)}</b>
-        <button type="button" class="cb-mini" data-copy="${esc(BANK.number)}">Copy</button></dd></div>
-    </dl>
-    <p class="cb-note"><a href="${BANK.image}" target="_blank" rel="noopener">See the bank details as a picture</a></p>`,
+    ${bankDetails()}`,
+  // Both ways to pay, side by side, before the runner picks one.
+  payment: () => `
+    <p><strong>Two ways to pay:</strong></p>
+    <div class="cb-option">
+      <p class="cb-option-h">Bank transfer</p>
+      ${shot(BANK.image, 'Bank transfer details')}
+      ${bankDetails()}
+      <p class="cb-note">Pay first, then send me a photo or screenshot of the receipt.</p>
+    </div>
+    <div class="cb-option">
+      <p class="cb-option-h">Employee · salary deduction</p>
+      <p>For SGEN employees. ${esc(DEDUCTION_TERMS)}</p>
+      <p class="cb-note">I will ask for your employee details and your written authorization. No receipt is needed.</p>
+    </div>`,
+  race: () => `
+    <p><strong>Distances and registration fees</strong></p>
+    ${shot(RACE_POSTER, 'Distances and registration fees')}`,
   chart: (fitId) => {
     const chart = fieldByName('shirt_size')?.sizeChart;
     const fit = chart?.fits?.find((x) => x.id === fitId);
@@ -252,16 +275,52 @@ const RICH = {
     const head = fit.columns.map((c) => `<th scope="col">${esc(c.label)}</th>`).join('');
     const rows = fit.sizes.map((s) => `<tr><td><b>${esc(s.value)}</b></td>${
       fit.columns.map((c) => `<td>${c.key === 'alias' ? esc(s[c.key] || '—') : inch(s[c.key])}</td>`).join('')}</tr>`).join('');
+    // How to measure, for the measurements this fit actually charts.
+    const measure = chart.measure || {};
+    const tips = fit.columns.filter((c) => measure[c.key])
+      .map((c) => `<li><b>${esc(measure[c.key].label)}:</b> ${esc(measure[c.key].text)}</li>`).join('');
     return `<p><strong>${esc(fit.label)} sizes</strong> · ${esc(fit.tagline)}</p>
-      <table class="cb-table"><thead><tr><th scope="col">Size</th>${head}</tr></thead><tbody>${rows}</tbody></table>
-      <p class="cb-note">Chest is measured across the flat shirt and doubled. Measurements are approximate, in inches.</p>`;
+      <div class="cb-scroll"><table class="cb-table"><thead><tr><th scope="col">Size</th>${head}</tr></thead><tbody>${rows}</tbody></table></div>
+      ${tips ? `<p class="cb-note"><strong>How to measure</strong></p><ul class="cb-tips">${tips}</ul>` : ''}
+      <p class="cb-note">${esc(measure.note || 'Measurements are approximate, in inches.')}</p>`;
   },
-  jersey: (cat) => `<p>Here is the <strong>${esc(cat)}</strong> race shirt.</p>
-    <img class="cb-jersey" src="/shirt/jersey/${esc(String(cat).toLowerCase())}-front.png" alt="${esc(cat)} race shirt, front">`,
+  jersey: (cat) => {
+    const j = JERSEYS[cat];
+    if (!j) return '';
+    const views = ['front', 'side', 'back'].map((v) =>
+      shot(`/shirt/jersey/${j.slug}-${v}.png`, `${cat} race shirt, ${v}`, v)).join('');
+    return `<p>Here is the <strong>${esc(cat)}</strong> race shirt · ${esc(j.colourway)}. Tap a picture to see it bigger.</p>
+      <div class="cb-shots">${views}</div>`;
+  },
   done: (ref) => `<p><strong>You are registered!</strong></p>
     <div class="cb-ref"><span>Your reference</span><b>${esc(ref)}</b></div>
     <p><button type="button" class="cb-mini" data-copy="${esc(ref)}">Copy reference</button></p>`,
 };
+
+/**
+ * A picture in the conversation. It is a button rather than a link: tapping it
+ * opens the picture over the chat, never in another tab, so the runner cannot
+ * lose their place in the conversation by looking at it.
+ */
+function shot(src, alt, caption = '') {
+  return `<button type="button" class="cb-shot" data-zoom="${esc(src)}" data-alt="${esc(alt)}">
+    <img src="${esc(src)}" alt="${esc(alt)}" loading="lazy">${caption ? `<span>${esc(caption)}</span>` : ''}</button>`;
+}
+
+/** The three bank details, each with its own Copy, and all three together. */
+function bankDetails() {
+  const row = (label, value, big = false) => `<div><dt>${esc(label)}</dt><dd class="cb-acct">${
+    big ? `<b>${esc(value)}</b>` : `<span>${esc(value)}</span>`}
+    <button type="button" class="cb-mini" data-copy="${esc(value)}" aria-label="Copy ${esc(label.toLowerCase())}">Copy</button></dd></div>`;
+  const all = [`Bank: ${BANK.bank}`, `Account name: ${BANK.name}`, `Account number: ${BANK.number}`]
+    .join(String.fromCharCode(10));
+  return `<dl class="cb-dl">
+      ${row('Bank name', BANK.bank)}
+      ${row('Account name', BANK.name)}
+      ${row('Account number', BANK.number, true)}
+    </dl>
+    <p class="cb-copyall"><button type="button" class="cb-mini" data-copy="${esc(all)}">Copy all details</button></p>`;
+}
 
 function rich(kind, data, { keep = true } = {}) {
   const html = RICH[kind]?.(data);
@@ -435,11 +494,15 @@ const PROMPTS = {
 const promptFor = (f) => PROMPTS[f.name] || `${f.label}?${f.help ? ' ' + f.help : ''}`;
 
 const fitsOf = (f) => f.sizeChart?.fits || [];
+/** The payment question: both ways to pay are shown before it is asked. */
+const PAYMENT_FIELD = 'payment_method';
 
 function askField(f, { again = false } = {}) {
   current = { type: 'field', field: f };
   if (!again) {
     if (f.type === 'file') rich('bank');
+    if (f.name === 'race_category') rich('race');
+    if (f.name === PAYMENT_FIELD) rich('payment');
     say(promptFor(f));
   }
   showInput(f);
@@ -481,11 +544,17 @@ function showSizes(f, fitId) {
   const fit = fitsOf(f).find((x) => x.id === fitId);
   if (!fit) return showInput(f);
   current.sub = 'size';
+  current.fit = fitId;
   rich('chart', fitId);
   say(`Which ${fit.label.toLowerCase()} size?`);
+  sizeChips(fit);
+}
+
+function sizeChips(fit) {
   composer('line', { placeholder: 'Or type your size' });
   chips([
     ...fit.sizes.map((s) => ({ label: s.value, value: s.value })),
+    { label: 'Show size chart', value: 'chart:', style: 'quiet' },
     { label: 'Change fit', value: 'fit:', style: 'quiet' },
   ]);
 }
@@ -500,6 +569,13 @@ function onField(f, raw, fromChip) {
   let value = tidy(raw);
 
   if (f.type === 'choice') {
+    if (fitsOf(f).length && fromChip && value === 'chart:') {
+      // Brought back for a runner who has scrolled past it; the question stays.
+      const fit = fitsOf(f).find((x) => x.id === current.fit);
+      if (!fit) return askField(f);
+      rich('chart', fit.id);
+      return sizeChips(fit);
+    }
     if (fitsOf(f).length && fromChip && value.startsWith('fit:')) {
       const id = value.slice(4);
       return id ? showSizes(f, id) : askField(f);
@@ -892,6 +968,8 @@ function greet() {
 /* ---------- opening, closing, and the keyboard ---------- */
 
 let started = false;
+/** Set when the runner ticked both boxes on the page and then chose the chat. */
+let carriedConsent = false;
 
 async function start() {
   if (started) return;
@@ -928,6 +1006,11 @@ async function start() {
   } else {
     state = fresh();
     greet();
+    if (carriedConsent) {
+      state.waiver = true;
+      state.privacy = true;
+      say('You have already accepted the waiver and the data privacy advisory on the page, so let us go straight to your details.');
+    }
   }
   next();
 }
@@ -988,7 +1071,140 @@ if (formView) new MutationObserver(placeLaunch).observe(formView, { attributes: 
 
 launch.addEventListener('click', open);
 document.getElementById('cb-start')?.addEventListener('click', open);
-panel.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+panel.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  // Escape puts the picture away first, and only then the chat.
+  if (!viewer.hidden) hidePicture(); else close();
+});
+
+/**
+ * Copies a value. The clipboard API where the browser offers it; otherwise
+ * the older select-and-copy, which is what an iPhone before iOS 13.4 has.
+ * Resolves to whether it worked.
+ */
+async function copyText(text) {
+  try {
+    if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(text); return true; }
+  } catch { /* fall through to the older way */ }
+  const t = document.createElement('textarea');
+  t.value = text;
+  t.setAttribute('readonly', '');
+  // 16px and off-screen: iOS zooms into anything smaller it has to select.
+  t.style.cssText = 'position:fixed;top:0;left:-9999px;font-size:16px;opacity:0';
+  panel.append(t);
+  t.select();
+  t.setSelectionRange(0, text.length);
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch { ok = false; }
+  t.remove();
+  return ok;
+}
+
+/* ---------- pictures, shown over the chat ---------- */
+
+const viewer = document.createElement('div');
+viewer.className = 'cb-viewer';
+viewer.hidden = true;
+viewer.setAttribute('role', 'dialog');
+viewer.setAttribute('aria-label', 'Picture');
+viewer.innerHTML = `
+  <button type="button" class="cb-icon cb-viewer-x" data-act="unzoom" aria-label="Close picture">${ICON.close}</button>
+  <div class="cb-viewer-body"><img alt=""><p></p></div>`;
+panel.append(viewer);
+const viewerImg = viewer.querySelector('img');
+const viewerCap = viewer.querySelector('p');
+let zoomFrom = null;
+
+function showPicture(src, alt) {
+  zoomFrom = document.activeElement;
+  viewerImg.src = src;
+  viewerImg.alt = alt || '';
+  viewerCap.textContent = alt || '';
+  viewer.hidden = false;
+  viewer.querySelector('.cb-viewer-x').focus({ preventScroll: true });
+}
+function hidePicture() {
+  viewer.hidden = true;
+  viewerImg.removeAttribute('src');
+  zoomFrom?.focus?.({ preventScroll: true });
+}
+
+/* ---------- on an iPhone, the chat is offered first ---------- */
+
+/**
+ * iPhone and iPad visitors who press "Proceed to registration" are asked
+ * whether they would rather register by chat. Only asked: the form is one
+ * tap away, nobody is moved off a page they chose, and a link straight to the
+ * form (#register) still opens the form.
+ *
+ * iPads describe themselves as Macs, so a Mac with a touch screen counts.
+ */
+const isIOS = () => /iPhone|iPad|iPod/.test(navigator.userAgent)
+  || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+
+const proceed = document.getElementById('proceed');
+let letFormThrough = false;
+
+const offer = document.createElement('div');
+offer.className = 'cb-offer';
+offer.hidden = true;
+offer.setAttribute('role', 'dialog');
+offer.setAttribute('aria-modal', 'true');
+offer.setAttribute('aria-labelledby', 'cb-offer-h');
+offer.innerHTML = `
+  <div class="cb-offer-card">
+    <p class="cb-offer-h" id="cb-offer-h">How would you like to register?</p>
+    <p class="cb-offer-p">On iPhone, the chat is the easiest way: one question at a time, with buttons for most answers.</p>
+    <button type="button" class="btn cb-offer-chat" data-offer="chat"><span class="btn-label">Register by chat</span></button>
+    <button type="button" class="cb-offer-form" data-offer="form">Use the form instead</button>
+  </div>`;
+document.body.append(offer);
+
+function closeOffer() {
+  offer.hidden = true;
+  document.documentElement.classList.remove('cb-lock');
+}
+
+if (proceed) {
+  // Capture, on the document: this runs before the page's own handler on the
+  // button, and can stop it from switching to the form.
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest?.('#proceed') || letFormThrough || !isIOS()) return;
+    // The page turns the runner back to the two consent boxes until both are
+    // ticked. That is its job; the offer comes after it.
+    const consented = document.getElementById('agree')?.checked && document.getElementById('privacy-agree')?.checked;
+    if (!consented) return;
+    e.preventDefault();
+    e.stopPropagation();
+    offer.hidden = false;
+    document.documentElement.classList.add('cb-lock');
+    offer.querySelector('[data-offer="chat"]').focus({ preventScroll: true });
+  }, true);
+
+  offer.addEventListener('click', (e) => {
+    const pick = e.target.closest('[data-offer]')?.dataset.offer;
+    if (!pick && e.target !== offer) return;
+    closeOffer();
+    if (pick === 'chat') {
+      // Both boxes were ticked on the page a moment ago; the chat does not
+      // ask for them a second time.
+      carriedConsent = true;
+      open();
+      // Already started, and still waiting on the two consents: take them.
+      if (SCHEMA && current && (current.type === 'waiver' || current.type === 'privacy')) {
+        state.waiver = true;
+        state.privacy = true;
+        say('You have already accepted the waiver and the data privacy advisory on the page, so let us go straight to your details.');
+        next();
+      }
+    } else if (pick === 'form') {
+      letFormThrough = true;
+      proceed.click();
+      letFormThrough = false;
+    }
+  });
+  offer.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeOffer(); });
+}
 
 panel.addEventListener('click', (e) => {
   const act = e.target.closest('[data-act]')?.dataset.act;
@@ -998,14 +1214,16 @@ panel.addEventListener('click', (e) => {
   const copy = e.target.closest('[data-copy]');
   if (copy) {
     const was = copy.textContent;
-    const done = (ok) => {
+    copyText(copy.dataset.copy).then((ok) => {
       copy.textContent = ok ? 'Copied' : 'Press and hold to copy';
       setTimeout(() => { copy.textContent = was; }, 1600);
-    };
-    if (navigator.clipboard?.writeText) navigator.clipboard.writeText(copy.dataset.copy).then(() => done(true), () => done(false));
-    else done(false);
+    });
     return;
   }
+
+  const zoom = e.target.closest('[data-zoom]');
+  if (zoom) return showPicture(zoom.dataset.zoom, zoom.dataset.alt);
+  if (e.target.closest('[data-act="unzoom"]') || e.target === viewer) return hidePicture();
 
   const edit = e.target.closest('.cb-edit');
   if (edit && !edit.disabled) editField(edit.dataset.name);

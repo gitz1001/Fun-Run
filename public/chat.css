@@ -230,3 +230,66 @@ html.cb-has-launch .scroll-fab{bottom:84px}
 @media (prefers-reduced-motion:reduce){
   .cb-fill{transition:none}
 }
+
+/* ---------- pictures in the conversation ---------- */
+/* A picture is a button: tapping it opens it over the chat (.cb-viewer). */
+.cb-shot{
+  display:block;width:100%;margin:8px 0 0;padding:0;cursor:zoom-in;
+  border:1px solid var(--line-2);border-radius:10px;overflow:hidden;
+  background:var(--bg);color:var(--ink-2);font:600 12px var(--font);
+  -webkit-tap-highlight-color:transparent;
+}
+.cb-shot img{display:block;width:100%;height:auto}
+.cb-shot span{display:block;padding:5px 0 6px;text-transform:capitalize;text-align:center}
+.cb-shot:focus-visible{outline:none;box-shadow:0 0 0 3px var(--accent-ring)}
+/* The shirt's three views, side by side. */
+.cb-shots{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.cb-shots .cb-shot{margin:8px 0 0;background:#fff}
+.cb-shots .cb-shot img{aspect-ratio:3/4;object-fit:contain;padding:4px}
+
+/* The two ways to pay, each in its own box. */
+.cb-option{margin:10px 0 0;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
+.cb-option-h{margin:0 0 6px !important;font-weight:700;color:var(--accent)}
+
+.cb-acct span{flex:1 1 auto;min-width:0}
+.cb-copyall{margin:10px 0 0 !important}
+
+/* A wide size table scrolls on its own instead of widening the message. */
+.cb-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.cb-tips{margin:4px 0 0;padding-left:18px;font-size:12.5px;color:var(--ink-2)}
+.cb-tips li{margin:0 0 4px}
+
+/* ---------- a picture, full size, over the chat ---------- */
+.cb-viewer{
+  position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;
+  background:rgba(16,16,20,.92);
+}
+.cb-viewer[hidden]{display:none}
+.cb-viewer-x{position:absolute;top:10px;right:10px;z-index:1;background:rgba(255,255,255,.9)}
+.cb-viewer-body{
+  flex:1 1 auto;min-height:0;overflow:auto;-webkit-overflow-scrolling:touch;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:60px 12px 16px;
+}
+.cb-viewer-body img{display:block;max-width:100%;height:auto;border-radius:8px;background:#fff}
+.cb-viewer-body p{margin:10px 0 0;color:#fff;font-size:13px;text-align:center}
+
+/* ---------- the iPhone choice: chat or form ---------- */
+.cb-offer{
+  position:fixed;inset:0;z-index:300;display:flex;align-items:flex-end;justify-content:center;
+  background:rgba(28,10,44,.55);padding:16px;
+  padding-bottom:calc(16px + env(safe-area-inset-bottom));
+}
+.cb-offer[hidden]{display:none}
+.cb-offer-card{
+  width:100%;max-width:440px;padding:22px 20px 16px;border-radius:16px;
+  background:var(--card);color:var(--ink);box-shadow:0 24px 70px -20px rgba(16,16,20,.5);
+  font:15px/1.5 var(--font);
+}
+.cb-offer-h{margin:0 0 6px;font:400 24px/1.2 var(--font-display)}
+.cb-offer-p{margin:0 0 16px;color:var(--ink-2)}
+.cb-offer-chat{width:100%}
+.cb-offer-form{
+  display:block;width:100%;margin-top:8px;min-height:46px;border:0;background:none;cursor:pointer;
+  color:var(--accent);font:600 15px var(--font);text-decoration:underline;
+}
