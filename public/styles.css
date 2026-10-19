@@ -861,6 +861,36 @@ a:hover{text-decoration:underline}
   animation:agreeNudge .4s ease-in-out;
 }
 .proceed-help{display:block;margin-top:10px;font-size:12px;color:var(--muted);line-height:1.5;text-align:center}
+
+/* The two confirmations, one step each: the document, then its box. */
+.consent-step{margin:0 0 18px}
+.consent-h{display:flex;align-items:center;gap:8px;margin:0 0 8px;font-size:14.5px;font-weight:700;color:var(--ink)}
+.consent-n{font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--accent)}
+.req-tag{
+  margin-left:auto;padding:2px 9px;border-radius:99px;font-size:11px;font-weight:700;
+  background:var(--err-bg);color:var(--err);border:1px solid var(--err-line);
+}
+.consent-step.is-done .req-tag{background:var(--accent-soft);color:var(--accent);border-color:var(--accent-ring)}
+/* Ticked: the tag says so instead of "Required". */
+.consent-step.is-done .req-tag{font-size:0}
+.consent-step.is-done .req-tag::before{content:"\2713  Done";font-size:11px}
+.consent-step .doc-link{margin:0 0 10px}
+.consent-step .agree{margin:0}
+/* An empty box has to read as a box to tick, not as decoration. */
+.agree .agree-mark{width:22px;height:22px;border-width:2px;border-color:var(--muted)}
+
+/* Said under a box that was missed, and above Proceed. */
+.agree-err{display:flex;gap:7px;margin:8px 2px 0;color:var(--err);font-size:13.5px;font-weight:600;line-height:1.45}
+.agree-err[hidden]{display:none}
+.proceed-alert{
+  margin:0 0 12px;padding:11px 13px;border-radius:10px;
+  background:var(--err-bg);border:1px solid var(--err-line);color:var(--ink);
+  font-size:14px;font-weight:600;line-height:1.5;
+}
+.proceed-alert a{color:var(--err);text-decoration:underline}
+/* Waiting for both boxes: looks as disabled did, but still answers a tap. */
+.btn.is-waiting{opacity:.62}
+.btn.is-waiting:hover{background:var(--accent)}
 @keyframes agreeNudge{
   0%,100%{transform:translateX(0)}
   25%{transform:translateX(-5px)}

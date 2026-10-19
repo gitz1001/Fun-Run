@@ -308,11 +308,50 @@ We run because every step can make a difference.
               employees may settle it through <strong>salary deduction</strong>
               instead.</li>
           <li>Upload your proof of payment before submitting.</li>
-          <li>Read the <strong>Data Privacy Advisory</strong> and confirm your consent below.</li>
-          <li>Read and agree to the <strong>Waiver of Liability</strong> before you continue. It opens as a PDF:</li>
+          <li>Read the <strong>Data Privacy Advisory</strong> and the <strong>Waiver of Liability</strong>,
+              then tick both boxes below.</li>
         </ol>
 
-        <div class="doc-links">
+        <!-- The two confirmations "Proceed" waits for. Each sits under the
+             document it confirms, and has its own place to say it was missed. -->
+        <div class="consent-step" id="privacy-step">
+          <p class="consent-h"><span class="consent-n">Step 1</span> Data Privacy Advisory
+            <span class="req-tag">Required</span></p>
+          <a class="doc-link" href="/data.html" target="_blank" rel="noopener">
+            <span class="doc-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none"
+                   stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 3.5 19 6v5.5c0 4.5-2.9 7.6-7 9-4.1-1.4-7-4.5-7-9V6l7-2.5Z"/>
+                <path d="M9 12h6M9 15h6"/>
+              </svg>
+            </span>
+            <span class="doc-text">
+              <span class="doc-name">Data Privacy Advisory</span>
+              <span class="doc-sub">Read the advisory · opens in a new tab</span>
+            </span>
+          </a>
+          <label class="agree" id="privacy-box">
+            <input type="checkbox" id="privacy-agree">
+            <span class="agree-mark" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none"
+                   stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5 12.5l4.5 4.5L19 7"/>
+              </svg>
+            </span>
+            <span class="agree-text">
+              I have read and <strong>consent to the collection and processing of my personal data</strong>
+              for the Southville Run For A Cause 2026 registration.
+            </span>
+          </label>
+          <p class="agree-err" id="privacy-err" hidden>
+            <span aria-hidden="true">&#9888;</span>
+            <span>Please read and tick the <strong>Data Privacy Advisory</strong> to continue.</span>
+          </p>
+        </div>
+
+        <div class="consent-step" id="waiver-step">
+          <p class="consent-h"><span class="consent-n">Step 2</span> Waiver of Liability
+            <span class="req-tag">Required</span></p>
           <a class="doc-link" href="/docs/official-waiver.pdf"
              target="_blank" rel="noopener">
             <span class="doc-icon" aria-hidden="true">
@@ -327,50 +366,24 @@ We run because every step can make a difference.
               <span class="doc-sub">PDF · opens in a new tab</span>
             </span>
           </a>
+          <label class="agree" id="agree-box">
+            <input type="checkbox" id="agree">
+            <span class="agree-mark" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none"
+                   stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M5 12.5l4.5 4.5L19 7"/>
+              </svg>
+            </span>
+            <span class="agree-text">
+              I have read and <strong>accept the Waiver of Liability</strong>, and I agree
+              to its terms for the Southville Run For A Cause 2026.
+            </span>
+          </label>
+          <p class="agree-err" id="waiver-err" hidden>
+            <span aria-hidden="true">&#9888;</span>
+            <span>Please read and tick the <strong>Waiver of Liability</strong> to continue.</span>
+          </p>
         </div>
-
-        <a class="doc-link" href="/data.html" target="_blank" rel="noopener">
-          <span class="doc-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none"
-                 stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 3.5 19 6v5.5c0 4.5-2.9 7.6-7 9-4.1-1.4-7-4.5-7-9V6l7-2.5Z"/>
-              <path d="M9 12h6M9 15h6"/>
-            </svg>
-          </span>
-          <span class="doc-text">
-            <span class="doc-name">Data Privacy Advisory</span>
-            <span class="doc-sub">Read the advisory · opens in a new tab</span>
-          </span>
-        </a>
-
-        <label class="agree" id="privacy-box">
-          <input type="checkbox" id="privacy-agree">
-          <span class="agree-mark" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="13" height="13" fill="none"
-                 stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M5 12.5l4.5 4.5L19 7"/>
-            </svg>
-          </span>
-          <span class="agree-text">
-            I have read and <strong>consent to the collection and processing of my personal data</strong>
-            for the Southville Run For A Cause 2026 registration.
-          </span>
-        </label>
-
-        <!-- The gate for "Proceed": both required confirmations must be ticked. -->
-        <label class="agree" id="agree-box">
-          <input type="checkbox" id="agree">
-          <span class="agree-mark" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="13" height="13" fill="none"
-                 stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M5 12.5l4.5 4.5L19 7"/>
-            </svg>
-          </span>
-          <span class="agree-text">
-            I have read and <strong>accept the Waiver of Liability</strong>, and I agree
-            to its terms for the Southville Run For A Cause 2026.
-          </span>
-        </label>
 
         <div class="notice info">
           <strong>Note:</strong> Each registration is for <strong>one (1) participant only</strong>.
@@ -402,7 +415,12 @@ We run because every step can make a difference.
 
     <!-- proceed -->
     <div class="proceed-card">
-      <button type="button" class="btn" id="proceed" disabled>
+      <!-- Filled in by app.js when Proceed is pressed before both boxes are ticked. -->
+      <p class="proceed-alert" id="proceed-alert" role="alert" hidden></p>
+      <!-- Not disabled: a disabled button ignores a tap, and a tap that does
+           nothing looks like a broken page. It looks waiting until both boxes
+           are ticked, and a tap says what is missing. -->
+      <button type="button" class="btn is-waiting" id="proceed" aria-disabled="true" aria-describedby="proceed-fine">
         <span>Proceed to the registration</span>
         <span class="btn-arrow" aria-hidden="true">
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none"
@@ -411,7 +429,7 @@ We run because every step can make a difference.
           </svg>
         </span>
       </button>
-      <span class="proceed-help">Your data privacy consent and waiver acceptance are required before continuing.</span>
+      <span class="proceed-help" id="proceed-fine" aria-live="polite">Tick the 2 boxes above to continue.</span>
     </div>
 
   </main>

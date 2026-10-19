@@ -200,16 +200,43 @@ function showErrorModal(msg) {
  * service for good, so the gate stands aside once that has happened rather
  * than reviving a button that has nothing to open.
  */
+/**
+ * The two confirmations, in the order the page shows them: each one's
+ * checkbox, the card around it, the step it sits in, the line that says it
+ * was missed, and the name it is called by in a message.
+ */
+// A function, not a constant: init() runs before this line is reached, and a
+// constant read that early stops the page from loading its questions.
+function consents() {
+  return [
+    { input: 'privacy-agree', box: 'privacy-box', step: 'privacy-step', err: 'privacy-err', name: 'Data Privacy Advisory' },
+    { input: 'agree', box: 'agree-box', step: 'waiver-step', err: 'waiver-err', name: 'Waiver of Liability' },
+  ];
+}
+
+function missingConsents() { return consents().filter((c) => !$(c.input)?.checked); }
+
 function wireAgreement() {
-  const privacy = $('privacy-agree');
-  const waiver = $('agree');
-  if (!privacy && !waiver) return;
-  [privacy, waiver].filter(Boolean).forEach((box) => {
-    box.addEventListener('change', () => {
-      $('privacy-box')?.classList.remove('nudge');
-      $('agree-box')?.classList.remove('nudge');
+  const present = consents().filter((c) => $(c.input));
+  if (!present.length) return;
+  present.forEach((c) => {
+    $(c.input).addEventListener('change', () => {
+      // Ticked: its warning goes at once, so the runner sees it is fixed.
+      if ($(c.input).checked) {
+        $(c.box)?.classList.remove('nudge');
+        if ($(c.err)) $(c.err).hidden = true;
+      }
       syncProceed();
     });
+  });
+  // The names in the warning above Proceed jump to their box.
+  $('proceed-alert')?.addEventListener('click', (e) => {
+    const link = e.target.closest('a[data-consent]');
+    if (!link) return;
+    e.preventDefault();
+    const c = consents().find((x) => x.input === link.dataset.consent);
+    $(c?.box)?.scrollIntoView({ block: 'center' });
+    $(c?.input)?.focus({ preventScroll: true });
   });
   syncProceed();
 }
@@ -218,30 +245,59 @@ function syncProceed() {
   const proceed = $('proceed');
   if (!proceed || proceedBlocked) return;
 
-  const privacyOk = privacyAgreed();
-  const waiverOk = agreed();
-  const ok = privacyOk && waiverOk;
-  proceed.disabled = !ok;
+  const missing = missingConsents();
+  const ok = missing.length === 0;
+  proceed.classList.toggle('is-waiting', !ok);
+  proceed.setAttribute('aria-disabled', String(!ok));
+  consents().forEach((c) => $(c.step)?.classList.toggle('is-done', !!$(c.input)?.checked));
 
   const fine = $('proceed-fine');
   if (fine) {
     fine.textContent = ok
-      ? 'Takes about 3 minutes. Have your proof of payment ready.'
-      : !privacyOk
-        ? 'Please confirm the Data Privacy Advisory to continue.'
-        : 'Please accept the Waiver of Liability to continue.';
+      ? 'All set — takes about 3 minutes. Have your proof of payment ready.'
+      : missing.length === 2
+        ? 'Tick the 2 boxes above to continue.'
+        : `Tick the ${missing[0].name} box above to continue.`;
+  }
+
+  // A warning already showing is kept true to what is still missing.
+  const alert = $('proceed-alert');
+  if (alert && !alert.hidden) {
+    if (ok) alert.hidden = true;
+    else fillProceedAlert(missing);
   }
 }
 
-/** Point at the first confirmation someone still needs to make. */
+function fillProceedAlert(missing) {
+  const alert = $('proceed-alert');
+  if (!alert) return;
+  const names = missing.map((c) => `<a href="#${c.box}" data-consent="${c.input}">${c.name}</a>`);
+  alert.innerHTML = `<span aria-hidden="true">&#9888;</span> Please tick ${
+    missing.length === 2 ? 'both boxes above' : 'the box above'}: ${names.join(' and ')}.`;
+  alert.hidden = false;
+}
+
+/**
+ * Proceed was pressed with a confirmation missing: say so beside each box
+ * that is still empty and above the button, and take the runner to the first
+ * one. The jump is instant — on an iPhone a tap made while the page is still
+ * gliding is lost, and the next tap is the one on the box.
+ */
 function nudgeAgreement() {
-  const box = privacyAgreed() ? $('agree-box') : $('privacy-box');
-  if (!box) return;
-  box.classList.remove('nudge');
-  void box.offsetWidth;
-  box.classList.add('nudge');
-  box.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  (privacyAgreed() ? $('agree') : $('privacy-agree'))?.focus({ preventScroll: true });
+  const missing = missingConsents();
+  if (!missing.length) return;
+  missing.forEach((c) => {
+    const box = $(c.box);
+    if (box) {
+      box.classList.remove('nudge');
+      void box.offsetWidth;
+      box.classList.add('nudge');
+    }
+    if ($(c.err)) $(c.err).hidden = false;
+  });
+  fillProceedAlert(missing);
+  $(missing[0].box)?.scrollIntoView({ block: 'center' });
+  $(missing[0].input)?.focus({ preventScroll: true });
 }
 
 /* ---------- SISC salary deduction panel ---------- */
