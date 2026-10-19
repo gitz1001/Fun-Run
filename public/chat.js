@@ -32,7 +32,7 @@ const BANK = {
 };
 
 /** The race poster the main page shows: every distance, with its fee. */
-const RACE_POSTER = '/race/race-categories.png';
+const RACE_POSTER = '/race/race-categories-rates.png';
 /** Each distance's shirt, as the main page names and pictures it. */
 const JERSEYS = {
   '1K': { slug: '1k', colourway: 'Classic white' },
