@@ -115,3 +115,13 @@ test('the Sheet carries both confirmations', () => {
   assert.ok(header.includes('Waiver of Liability'));
   assert.ok(header.includes('Data Privacy Consent'));
 });
+
+test('grade level is asked of SISC K12 and IB runners only', () => {
+  const k12 = { school_affiliation: 'SISC K12 and IB' };
+  assert.match(validate(valid(k12)).join(' '), /Grade level/);
+  assert.deepEqual(validate(valid({ ...k12, sisc_level: 'IB 1' })), []);
+  assert.deepEqual(validate(valid({ ...k12, sisc_level: 'Parent' })), []);
+  assert.match(validate(valid({ ...k12, sisc_level: 'Grade 13' })).join(' '), /Grade level must be one of/);
+  // Everyone else is never asked, so a missing level is no error.
+  assert.deepEqual(validate(valid({ school_affiliation: 'Alumni' })), []);
+});

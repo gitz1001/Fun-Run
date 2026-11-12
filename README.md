@@ -105,12 +105,14 @@ copies `.env.local` to Vercel's Production environment.
 | `lib/staff-auth.js` | the staff passcode, signed session cookie and login throttle |
 | `lib/rate-limit.js` | per-IP limits counted in Postgres, so they hold across instances |
 | `api/register.js` | validate → check receipt → record → respond → mirror and email |
-| `api/drive-upload.js` | receives a receipt (WebP, JPEG, PNG, HEIC or PDF, ≤ 4 MB) and stores it |
+| `api/drive-upload.js` | receives a receipt up to 4 MB (WebP, JPEG, PNG, HEIC or PDF) and stores it |
+| `api/upload-session.js` | receipts of 4–10 MB: opens a one-file Drive upload the browser sends to directly, then checks and records it |
+| `lib/uploads.js` `public/receipt-upload.js` | the size limits and file rules, server side and page side |
 | `api/receipt.js` | serves a receipt to signed-in staff |
 | `api/schema.js` | serves the questions to the page |
 | `api/staff-*.js` | sign-in, dashboard data, health check, reset |
 | `public/` | the registration page, the staff dashboard, and their assets |
-| `tools/` | `doctor`, `db-init`, `sheet-init`, `replay`, `sweep-uploads`, `get-refresh-token`, `push-env`, `dev-server` |
+| `tools/` | `render-share-image` (the link-preview card), `doctor`, `db-init`, `sheet-init`, `replay`, `sweep-uploads`, `get-refresh-token`, `push-env`, `dev-server` |
 | `test/` | the rules that must not regress |
 | `assets-src/` | working files and supplier artwork; never deployed |
 
@@ -123,8 +125,18 @@ hand-maintained one, so do not run them against this repo.
 
 ## Receipts
 
-Photos are resized in the browser to a 1400px edge and re-encoded (stepping
-down in quality towards ~700 KB), which also strips camera metadata. The
+Receipts may be up to **10 MB**. Photos are resized in the browser to a 2000px
+edge and re-encoded (stepping down in quality towards ~1 MB), which also strips
+camera metadata, so a phone photo of any size ends up well under the limit.
+
+A file of 4 MB or less goes through `/api/drive-upload`. A larger one — in
+practice a big PDF — cannot: Vercel refuses a function request body over
+4.5 MB before any code runs. So `/api/upload-session` opens a resumable Google
+Drive upload for that one file (name, type and size fixed by the server and
+signed into a ticket), the browser sends the bytes straight to Google, and the
+server then reads the file back — name, folder, size and first bytes — before
+recording it. A file that fails the check is deleted; one it did not create is
+left alone. The CSP allows `connect-src https://www.googleapis.com` for this. The
 format is WebP where the browser can encode it and **JPEG where it cannot —
 Safari, and so every browser on an iPhone, cannot.** PDFs are sent as they
 are, and so is a photo the browser could not re-encode. The file picker does

@@ -1,38 +1,15 @@
 import { uploadToDrive, deleteDriveFile, driveConfigured } from '../lib/google-drive.js';
 import { dbConfigured, ensureSchema, recordUpload } from '../lib/db.js';
 import { limited, clientIp } from '../lib/rate-limit.js';
+import {
+  ALLOWED, PROXY_MAX_BYTES, MAX_MB, UPLOAD_LIMIT, sniff, storedName,
+} from '../lib/uploads.js';
 
-const MAX_BYTES = 4 * 1024 * 1024;
-// Photos are shrunk in the browser first: to WebP where it can encode one,
-// and to JPEG where it cannot — which is every browser on an iPhone. This
-// used to accept WebP alone, so no iPhone could attach a photo at all. PNG
-// and HEIC are what arrives when the browser could not re-encode the picture.
-const ALLOWED = {
-  'image/webp': 'webp',
-  'image/jpeg': 'jpg',
-  'image/png': 'png',
-  'application/pdf': 'pdf',
-  'image/heic': 'heic',
-  'image/heif': 'heic',
-};
-// The brands an ISO media file declares when it is a HEIC/HEIF still image.
-const HEIC_BRANDS = new Set(['heic', 'heix', 'heim', 'heis', 'hevc', 'hevx', 'hevm', 'hevs', 'mif1', 'msf1', 'heif']);
-
-// Generous on purpose: a whole school registers from behind one campus address.
-const UPLOADS = { windowSec: 60 * 60, max: 60 };
-
-const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-
-function sniff(buf) {
-  if (buf.length > 4 && buf.subarray(0, 4).toString('latin1') === '%PDF') return 'pdf';
-  if (buf.length > 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'jpg';
-  if (buf.length > 8 && buf.subarray(0, 8).equals(PNG_MAGIC)) return 'png';
-  if (buf.length > 12 && buf.subarray(0, 4).toString('latin1') === 'RIFF' &&
-      buf.subarray(8, 12).toString('latin1') === 'WEBP') return 'webp';
-  if (buf.length > 12 && buf.subarray(4, 8).toString('latin1') === 'ftyp' &&
-      HEIC_BRANDS.has(buf.subarray(8, 12).toString('latin1'))) return 'heic';
-  return null;
-}
+// The cap for this route is Vercel's, not ours: a function refuses any
+// request body over 4.5 MB before this code runs. Larger receipts, up to
+// MAX_BYTES, go straight to Drive through /api/upload-session instead.
+const MAX_BYTES = PROXY_MAX_BYTES;
+const tooBig = `That file is too large. Please keep it under ${MAX_MB} MB.`;
 
 async function readBody(req) {
   if (Buffer.isBuffer(req.body)) return req.body;
@@ -47,15 +24,6 @@ async function readBody(req) {
   return Buffer.concat(chunks);
 }
 
-// The page percent-encodes the name, since a header can only carry Latin-1.
-// A page from before that sends it raw, and a raw name may not decode.
-const decoded = (s) => { try { return decodeURIComponent(String(s || '')); } catch { return String(s || ''); } };
-
-const safeName = (s) => (decoded(s) || 'receipt')
-  .replace(/[^a-zA-Z0-9._-]/g, '_')
-  .replace(/_{2,}/g, '_')
-  .slice(-80) || 'receipt';
-
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
@@ -64,7 +32,7 @@ export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
 
   const ip = clientIp(req);
-  if (await limited('upload', ip, UPLOADS)) {
+  if (await limited('upload', ip, UPLOAD_LIMIT)) {
     return res.status(429).json({ ok: false, error: 'Too many uploads from this connection. Please wait a while and try again.' });
   }
   // The uploads table is what lets a registration name this file later, so
@@ -81,18 +49,17 @@ export default async function handler(req, res) {
   let buf;
   try { buf = await readBody(req); }
   catch (err) {
-    if (err.message === 'TOO_LARGE') return res.status(413).json({ ok: false, error: 'That file is too large. Please keep it under 4 MB.' });
+    if (err.message === 'TOO_LARGE') return res.status(413).json({ ok: false, error: tooBig });
     return res.status(400).json({ ok: false, error: 'Could not read the uploaded file.' });
   }
   if (!buf.length) return res.status(400).json({ ok: false, error: 'The uploaded file was empty.' });
-  if (buf.length > MAX_BYTES) return res.status(413).json({ ok: false, error: 'That file is too large. Please keep it under 4 MB.' });
+  if (buf.length > MAX_BYTES) return res.status(413).json({ ok: false, error: tooBig });
 
   if (sniff(buf) !== ALLOWED[contentType]) {
     return res.status(415).json({ ok: false, error: 'That file does not look like a valid image or PDF.' });
   }
 
-  const stamp = new Date().toISOString().slice(0, 10);
-  const filename = `${stamp}-${safeName(req.headers['x-filename'])}`;
+  const filename = storedName(req.headers['x-filename']);
 
   let file;
   try {

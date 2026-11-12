@@ -1,0 +1,77 @@
+<!doctype html>
+<!--
+  The link-preview card (Open Graph / Twitter), 1200 × 630.
+  Rendered to public/og/share.jpg by:  node tools/render-share-image.js
+  Uses the site's own fonts, logos and palette, so it reads as the same event.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+@font-face{font-family:"Archivo";font-weight:400 900;font-stretch:62% 125%;
+  src:url("../public/fonts/archivo-latin.woff2") format("woff2")}
+@font-face{font-family:"Instrument Serif";font-style:italic;
+  src:url("../public/fonts/instrument-serif-italic-latin.woff2") format("woff2")}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:1200px;height:630px}
+body{
+  font-family:"Archivo",system-ui,sans-serif;color:#3a1259;overflow:hidden;position:relative;
+  background:linear-gradient(160deg,#b7f1ee 0%,#8ce3de 60%,#63d3cd 100%);
+}
+/* soft track lines, a nod to a running course */
+body::before{
+  content:"";position:absolute;inset:-40% -10% auto auto;width:900px;height:900px;border-radius:50%;
+  border:46px solid rgba(255,255,255,.22);box-shadow:0 0 0 70px rgba(255,255,255,.10);
+  right:-380px;top:-300px;
+}
+.card{position:relative;z-index:1;display:grid;grid-template-columns:1fr 360px;height:100%;padding:48px 60px 54px}
+.left{display:flex;flex-direction:column;justify-content:space-between}
+.logos{display:flex;align-items:center;gap:22px}
+.logos img{height:66px;width:auto}
+.kicker{font-weight:700;font-stretch:90%;letter-spacing:.14em;text-transform:uppercase;font-size:19px;opacity:.78;margin-top:26px}
+.wm{font-weight:850;font-stretch:118%;text-transform:uppercase;line-height:.98;font-size:68px;letter-spacing:-.005em;margin-top:6px}
+.wm .pink{color:#ffc2dd;-webkit-text-stroke:.045em #3a1259;paint-order:stroke fill;display:block}
+.wm .year{font-size:.8em;letter-spacing:.06em}
+.tag{font-family:"Instrument Serif",serif;font-style:italic;font-size:38px;color:#0c7c4a;margin-top:10px}
+.meta{display:flex;gap:14px;margin-top:22px}
+.pill{background:#3a1259;color:#fff;font-weight:700;font-size:24px;padding:12px 22px;border-radius:999px}
+.pill.light{background:rgba(255,255,255,.75);color:#3a1259}
+.fees{align-self:center;background:#fff;border-radius:26px;padding:26px 28px;box-shadow:0 18px 50px rgba(58,18,89,.22)}
+.fees h2{font-weight:800;font-stretch:110%;text-transform:uppercase;font-size:21px;letter-spacing:.08em;color:#6d2794;margin-bottom:14px}
+.row{display:flex;justify-content:space-between;align-items:baseline;padding:13px 0;border-top:2px solid #f0e6f6;font-size:27px}
+.row b{font-weight:850;font-stretch:112%}
+.row span{font-weight:600}
+.cta{margin-top:18px;background:#6d2794;color:#fff;text-align:center;font-weight:800;font-size:24px;padding:14px;border-radius:14px;letter-spacing:.02em}
+.url{margin-top:12px;text-align:center;font-weight:700;font-size:20px;color:#3a1259;opacity:.75}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="left">
+    <div>
+      <div class="logos">
+        <img src="../public/logos/sisc.png" alt="">
+        <img src="../public/logos/sfo.png" alt="">
+        <img src="../public/logos/filinvest.png" alt="">
+      </div>
+      <p class="kicker">Southville for Others &amp; Alumni Department</p>
+      <h1 class="wm">Southville Run<span class="pink">For A Cause</span><span class="year">2026</span></h1>
+      <p class="tag">Make Everyday Step Count</p>
+    </div>
+    <div class="meta">
+      <span class="pill">Sun · Nov 29, 2026</span>
+      <span class="pill light">Central Park, Filinvest, Alabang</span>
+    </div>
+  </div>
+  <div class="fees">
+    <h2>1K · 3K · 5K · 10K</h2>
+    <div class="row"><b>1K Walk</b><span>₱950</span></div>
+    <div class="row"><b>3K</b><span>₱1,050</span></div>
+    <div class="row"><b>5K</b><span>₱1,150</span></div>
+    <div class="row"><b>10K</b><span>₱1,250</span></div>
+    <div class="cta">Register now</div>
+    <div class="url">funrun.edgarr.dev</div>
+  </div>
+</div>
+</body>
+</html>

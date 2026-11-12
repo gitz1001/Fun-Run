@@ -31,6 +31,7 @@ const MIME = {
   '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
   '.webp': 'image/webp', '.gif': 'image/gif', '.avif': 'image/avif',
   '.woff2': 'font/woff2', '.pdf': 'application/pdf',
+  '.txt': 'text/plain', '.xml': 'application/xml',
 };
 
 /**

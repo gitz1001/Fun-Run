@@ -1556,6 +1556,10 @@ a:hover{text-decoration:underline}
   border:1px solid var(--line-2);color:var(--ink-2);
   font-size:13.5px;font-weight:700;letter-spacing:.03em;
 }
+/* With the fee beside each distance, the distance leads in the event purple
+   and the price follows in the body ink. */
+.race-fees .race-chip{font-weight:600;letter-spacing:.01em;color:var(--ink)}
+.race-fees .race-chip b{font-weight:800;color:var(--accent);margin-right:4px}
 /* Left, with the prose it belongs to. Centring these while the
    paragraph above them ranges left was the box speaking, and the box is
    gone. */

@@ -1,3 +1,7 @@
+import {
+  MAX_UPLOAD, MAX_MB, MAX_PHOTO_SOURCE, UPLOAD_KINDS, ACCEPT, kb, isImage, typeOf, downscale, sendReceipt,
+} from './receipt-upload.js';
+
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -50,7 +54,9 @@ async function init() {
   const titleEl = $('title');
   if (titleEl && !titleEl.hasAttribute('data-static')) titleEl.textContent = SCHEMA.title;
   $('desc').textContent = SCHEMA.description || '';
-  document.title = SCHEMA.title;
+  // document.title is left as index.html wrote it: that title is written for
+  // search results and link previews, and Google reads the page after this
+  // script has run.
 
   if (!SCHEMA.configured) {
     const msg =
@@ -1316,7 +1322,7 @@ function renderField(f) {
       <input type="hidden" name="${esc(f.name)}" id="${id}" value="">
       <label class="drop" data-drop="${esc(f.name)}">
         <input type="file" id="${id}_picker" class="file-input"
-               accept="image/jpeg,image/png,image/webp,application/pdf"
+               accept="${ACCEPT}"
                aria-describedby="${esc(describedBy)}">
         <span class="drop-icon" aria-hidden="true">&#8679;</span>
         <span class="drop-main">Choose a file or drag it here</span>
@@ -1579,124 +1585,14 @@ function wireEvents() {
 
 /* ---------- file upload ---------- */
 
-const MAX_UPLOAD = 4 * 1024 * 1024;
-// What a photo may weigh before it is shrunk. Well past any phone camera.
-const MAX_PHOTO_SOURCE = 40 * 1024 * 1024;
-// What may be sent, what to call it, and whether this browser can preview it.
-const UPLOAD_KINDS = {
-  'image/webp': { label: 'WebP', preview: true },
-  'image/jpeg': { label: 'JPG', preview: true },
-  'image/png': { label: 'PNG', preview: true },
-  'image/heic': { label: 'HEIC', preview: false },
-  'image/heif': { label: 'HEIC', preview: false },
-  'application/pdf': { label: 'PDF', preview: false },
-};
-const kb = (n) => (n < 1024 * 1024 ? `${Math.round(n / 1024)} KB` : `${(n / 1048576).toFixed(1)} MB`);
+// The size limits, the photo shrinking and the two upload routes live in
+// receipt-upload.js, shared with the chat assistant.
 
 // Each file field registers a reset callback, so the form can clear all of
 // them at once or drop just the one whose question stopped being asked.
 const uploadResetters = new Map();
 function resetUploads() {
   uploadResetters.forEach((fn) => fn());
-}
-
-// Some phones report no type at all for a photo, so the name is consulted too.
-const IMAGE_NAME = /\.(jpe?g|png|webp|heic|heif|gif|bmp)$/i;
-const isImage = (file) => file.type.startsWith('image/') || (!file.type && IMAGE_NAME.test(file.name));
-
-/**
- * Opens a picked photo for drawing.
- *
- * Through an <img> first: that is the path every browser has had longest, it
- * honours the photo's rotation, and it copes with a 48-megapixel camera shot
- * that createImageBitmap can run out of memory on in iOS Safari.
- * createImageBitmap is the fallback, not the other way round.
- */
-async function decodeImage(file) {
-  const url = URL.createObjectURL(file);
-  try {
-    const img = new Image();
-    img.decoding = 'async';
-    await new Promise((resolve, reject) => {
-      img.onload = resolve;
-      img.onerror = () => reject(new Error('not decodable'));
-      img.src = url;
-    });
-    if (!img.naturalWidth) throw new Error('not decodable');
-    return {
-      source: img, width: img.naturalWidth, height: img.naturalHeight,
-      release: () => URL.revokeObjectURL(url),
-    };
-  } catch (err) {
-    URL.revokeObjectURL(url);
-    if (typeof createImageBitmap !== 'function') throw err;
-    const bmp = await createImageBitmap(file);
-    return { source: bmp, width: bmp.width, height: bmp.height, release: () => bmp.close?.() };
-  }
-}
-
-/**
- * Shrinks a large photo in the browser so a phone camera shot does not blow
- * past the request limit. Returns the original if it is already small,
- * cannot be decoded, or is not an image.
- */
-async function downscale(file) {
-  // Payment receipts are deliberately normalised in the browser before they
-  // ever reach Blob. Canvas/WebP strips camera metadata and gives us a much
-  // smaller, predictable image while keeping the receipt readable.
-  if (!isImage(file)) return file;
-
-  try {
-    const pic = await decodeImage(file);
-    const max = 1400;
-    const scale = Math.min(1, max / Math.max(pic.width, pic.height));
-    const w = Math.max(1, Math.round(pic.width * scale));
-    const h = Math.max(1, Math.round(pic.height * scale));
-    const canvas = document.createElement('canvas');
-    canvas.width = w;
-    canvas.height = h;
-    const ctx = canvas.getContext('2d', { alpha: false });
-    // A transparent PNG would otherwise come out on black once it is a JPEG.
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(0, 0, w, h);
-    ctx.drawImage(pic.source, 0, 0, w, h);
-    pic.release();
-
-    // Safari — and so every browser on an iPhone or iPad — cannot encode
-    // WebP. Asked for it, canvas.toBlob quietly hands back a PNG instead,
-    // which used to be sent labelled as WebP and refused by the server. So
-    // the format is settled by what actually comes back: WebP where the
-    // browser can make one, JPEG everywhere else.
-    const encode = (type, quality) =>
-      new Promise((resolve) => canvas.toBlob(resolve, type, quality));
-    const probe = await encode('image/webp', 0.62);
-    const format = probe?.type === 'image/webp' ? 'image/webp' : 'image/jpeg';
-
-    // Prefer a very small receipt, but step down quality gradually so text and
-    // QR/barcode details remain usable. The smallest successful result wins.
-    const qualities = format === 'image/webp' ? [0.62, 0.52, 0.42, 0.34] : [0.72, 0.62, 0.52, 0.42];
-    const target = 700 * 1024;
-    let best = null;
-
-    for (const quality of qualities) {
-      const blob = quality === 0.62 && format === 'image/webp' ? probe : await encode(format, quality);
-      if (!blob || blob.type !== format) continue;
-      if (!best || blob.size < best.size) best = blob;
-      if (blob.size <= target) break;
-    }
-
-    if (!best) throw new Error('This browser could not encode the image');
-
-    return new File(
-      [best],
-      file.name.replace(/\.[^.]+$/, '') + (format === 'image/webp' ? '.webp' : '.jpg'),
-      { type: format, lastModified: Date.now() }
-    );
-  } catch {
-    // If the browser cannot decode or encode this image (a HEIC outside
-    // Safari, say), it is sent as it is and the server decides.
-    return file;
-  }
 }
 
 function wireUpload(f) {
@@ -1712,8 +1608,12 @@ function wireUpload(f) {
   if (!hidden || !picker) return;
 
   let objectUrl = null;
+  // Bumped by every new pick and by Remove, so an upload that finishes after
+  // the runner has moved on cannot attach the file they took back.
+  let attempt = 0;
 
   const reset = () => {
+    attempt++;
     hidden.value = '';
     picker.value = '';
     state.hidden = true;
@@ -1748,6 +1648,7 @@ function wireUpload(f) {
 
   async function handle(file) {
     if (!file) return;
+    const mine = ++attempt;
 
     // A photo is shrunk before it is sent, so a big one is fine — a phone
     // camera shot is routinely 5-15 MB. A PDF is sent as it is.
@@ -1755,7 +1656,7 @@ function wireUpload(f) {
     if (file.size > (photo ? MAX_PHOTO_SOURCE : MAX_UPLOAD)) {
       setFieldState(f.name, photo
         ? `That photo is ${kb(file.size)}, which is too large. Try a screenshot of the receipt instead.`
-        : `That file is ${kb(file.size)}. Please keep it under 4 MB.`, '');
+        : `That file is ${kb(file.size)}. Please keep it under ${MAX_MB} MB.`, '');
       picker.value = '';
       return;
     }
@@ -1772,9 +1673,10 @@ function wireUpload(f) {
     setFieldState(f.name, '', '');
 
     const sending = await downscale(file);
+    if (mine !== attempt) return;
     // Some browsers report no type at all for a .heic file, so the name is
     // the only clue left to what it is.
-    const type = sending.type || (/\.hei[cf]$/i.test(sending.name) ? 'image/heic' : '');
+    const type = typeOf(sending);
     const kind = UPLOAD_KINDS[type];
 
     if (!kind) {
@@ -1790,41 +1692,33 @@ function wireUpload(f) {
     }
 
     if (sending.size > MAX_UPLOAD) {
-      return fail('That file is too large. Please keep it under 4 MB.',
+      return fail(`That file is too large. Please keep it under ${MAX_MB} MB.`,
         `Too large (${kb(sending.size)}). Please use a smaller file.`);
     }
 
     status.textContent = `Uploading… ${kb(sending.size)}`;
-    bar.style.width = '35%';
+    bar.style.width = '15%';
 
-    let res;
+    // A big file goes straight to Drive and reports its progress; the bar
+    // runs from 15% to 95%, leaving the last step for the server's check.
+    let sent;
     try {
-      res = await fetch('/api/drive-upload', {
-        method: 'POST',
-        // Encoded: a header may only carry Latin-1, and a file name with
-        // anything else in it — an emoji, or the narrow space macOS puts in
-        // "9.41 PM" — made fetch throw before a byte was sent, which the
-        // page then reported as a network error.
-        headers: { 'Content-Type': type, 'X-Filename': encodeURIComponent(sending.name) },
-        body: sending,
+      sent = await sendReceipt(sending, {
+        type,
+        onProgress: (p) => { if (mine === attempt) bar.style.width = `${Math.round(15 + p * 80)}%`; },
       });
-    } catch {
-      return fail('Network error while uploading. Please try again.', 'Network error. Please try again.');
+    } catch (err) {
+      if (mine !== attempt) return;
+      return fail(err.message || 'Upload failed. Please try again.');
     }
-
-    // The platform itself can answer with a page rather than JSON (a
-    // time-out, an over-size body), so the body is read defensively.
-    const data = await res.json().catch(() => ({}));
-    const fileId = String(data.id || '');
-    if (!res.ok || !data.ok || !fileId) {
-      return fail(data.error || 'Upload failed. Please try again.');
-    }
+    if (mine !== attempt) return;
+    const fileId = sent.id;
 
     // Only the file id travels with the registration. The server looks it
     // up in its own record of uploads and builds the stored link itself.
     hidden.value = fileId;
     bar.style.width = '100%';
-    status.textContent = `Uploaded · ${kb(data.size ?? sending.size)} ${kind.label}`;
+    status.textContent = `Uploaded · ${kb(sent.size)} ${kind.label}`;
     status.className = 'upload-status good';
     setFieldState(f.name, '', fileId);
     updateProgress();

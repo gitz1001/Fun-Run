@@ -1,3 +1,5 @@
 User-agent: *
 Disallow: /staff
 Disallow: /api/
+
+Sitemap: https://funrun.edgarr.dev/sitemap.xml

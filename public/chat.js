@@ -6,7 +6,8 @@
  * options and their rules all come from /api/schema — the same source the
  * form is drawn from — and the answers go to the same two endpoints:
  *
- *   POST /api/drive-upload   the receipt, which returns a file id
+ *   receipt-upload.js        the receipt, sent the way the form sends it,
+ *                            which returns a file id
  *   POST /api/register       every answer, the two consents and that id
  *
  * so a registration made here is recorded, mirrored to the Sheet and emailed
@@ -16,6 +17,10 @@
  * The file builds its own button and panel, so a page only has to load it
  * (and chat.css). <body data-chat-open> opens the panel straight away.
  */
+
+import {
+  MAX_UPLOAD, MAX_MB, MAX_PHOTO_SOURCE, UPLOAD_KINDS, ACCEPT, kb, isImage, typeOf, downscale, sendReceipt,
+} from './receipt-upload.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -478,6 +483,7 @@ const PROMPTS = {
   age: 'How old are you, in years?',
   sex: 'What is your sex?',
   school_affiliation: 'Which school or Southville affiliation are you from?',
+  sisc_level: 'Which level are you in at SISC K12 and IB? Choose Parent if you are registering as a parent.',
   race_category: 'Which race category are you joining?',
   shirt_size: 'What shirt size would you like? First, which fit?',
   team_or_organization: 'Are you running with a team or organization? Type its name, or skip this if you are running as an individual.',
@@ -486,7 +492,7 @@ const PROMPTS = {
   sd_employee_number: 'What is your employee number?',
   sd_department: 'Which department or office are you with?',
   sd_authorization: 'To authorize the deduction from your payroll, please type your LAST NAME, FIRST NAME — with a comma between them.',
-  proof_of_payment: 'Please send your proof of payment: a photo, a screenshot or a PDF of your deposit slip or transfer receipt (up to 4 MB).',
+  proof_of_payment: 'Please send your proof of payment: a photo, a screenshot or a PDF of your deposit slip or transfer receipt (up to ' + MAX_MB + ' MB).',
   emergency_contact_name: 'Who should we contact in an emergency? Please give their name.',
   emergency_contact_number: 'What is their contact number?',
   medical_conditions: 'Do you have any medical conditions or allergies our medical team should know about? Tap "None" if not.',
@@ -610,77 +616,8 @@ function accept(f, value) {
 
 /* ---------- the receipt ---------- */
 
-const MAX_UPLOAD = 4 * 1024 * 1024;
-// What a photo may weigh before it is shrunk. Well past any phone camera.
-const MAX_PHOTO_SOURCE = 40 * 1024 * 1024;
-const UPLOAD_KINDS = {
-  'image/webp': 'WebP', 'image/jpeg': 'JPG', 'image/png': 'PNG',
-  'image/heic': 'HEIC', 'image/heif': 'HEIC', 'application/pdf': 'PDF',
-};
-const kb = (n) => (n < 1024 * 1024 ? `${Math.round(n / 1024)} KB` : `${(n / 1048576).toFixed(1)} MB`);
-const IMAGE_NAME = /\.(jpe?g|png|webp|heic|heif|gif|bmp)$/i;
-const isImage = (file) => file.type.startsWith('image/') || (!file.type && IMAGE_NAME.test(file.name));
-
-/** Through an <img> first: it honours rotation and copes with huge photos on iOS. */
-async function decodeImage(file) {
-  const url = URL.createObjectURL(file);
-  try {
-    const img = new Image();
-    img.decoding = 'async';
-    await new Promise((resolve, reject) => {
-      img.onload = resolve;
-      img.onerror = () => reject(new Error('not decodable'));
-      img.src = url;
-    });
-    if (!img.naturalWidth) throw new Error('not decodable');
-    return { source: img, width: img.naturalWidth, height: img.naturalHeight, release: () => URL.revokeObjectURL(url) };
-  } catch (err) {
-    URL.revokeObjectURL(url);
-    if (typeof createImageBitmap !== 'function') throw err;
-    const bmp = await createImageBitmap(file);
-    return { source: bmp, width: bmp.width, height: bmp.height, release: () => bmp.close?.() };
-  }
-}
-
-/**
- * Shrinks a photo to a 1400px edge before it is sent, as the form does:
- * WebP where the browser can encode one, JPEG where it cannot — which is
- * every browser on an iPhone. Anything it cannot handle is sent as it is.
- */
-async function downscale(file) {
-  if (!isImage(file)) return file;
-  try {
-    const pic = await decodeImage(file);
-    const scale = Math.min(1, 1400 / Math.max(pic.width, pic.height));
-    const w = Math.max(1, Math.round(pic.width * scale));
-    const h = Math.max(1, Math.round(pic.height * scale));
-    const canvas = document.createElement('canvas');
-    canvas.width = w;
-    canvas.height = h;
-    const ctx = canvas.getContext('2d', { alpha: false });
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(0, 0, w, h);
-    ctx.drawImage(pic.source, 0, 0, w, h);
-    pic.release();
-
-    const encode = (type, quality) => new Promise((resolve) => canvas.toBlob(resolve, type, quality));
-    const probe = await encode('image/webp', 0.62);
-    const format = probe?.type === 'image/webp' ? 'image/webp' : 'image/jpeg';
-    const qualities = format === 'image/webp' ? [0.62, 0.52, 0.42, 0.34] : [0.72, 0.62, 0.52, 0.42];
-    let best = null;
-    for (const quality of qualities) {
-      const blob = quality === 0.62 && format === 'image/webp' ? probe : await encode(format, quality);
-      if (!blob || blob.type !== format) continue;
-      if (!best || blob.size < best.size) best = blob;
-      if (blob.size <= 700 * 1024) break;
-    }
-    if (!best) throw new Error('could not encode');
-    return new File([best], file.name.replace(/\.[^.]+$/, '') + (format === 'image/webp' ? '.webp' : '.jpg'),
-      { type: format, lastModified: Date.now() });
-  } catch {
-    return file;
-  }
-}
+// The size limits, the photo shrinking and the two upload routes live in
+// receipt-upload.js, shared with the registration form.
 
 function attach(f) {
   quick.textContent = '';
@@ -689,9 +626,8 @@ function attach(f) {
   label.innerHTML = `${ICON.clip}<span>Choose a photo or PDF</span>`;
   const picker = document.createElement('input');
   picker.type = 'file';
-  // HEIC is left out on purpose: given only these, an iPhone converts a HEIC
-  // photo to JPEG itself before handing it over.
-  picker.accept = 'image/jpeg,image/png,image/webp,application/pdf';
+  // HEIC is left out on purpose: see ACCEPT in receipt-upload.js.
+  picker.accept = ACCEPT;
   picker.setAttribute('aria-label', 'Choose your proof of payment');
   picker.addEventListener('change', () => {
     const file = picker.files?.[0];
@@ -720,39 +656,36 @@ async function upload(f, file) {
   if (file.size > (photo ? MAX_PHOTO_SOURCE : MAX_UPLOAD)) {
     return fail(photo
       ? `That photo is ${kb(file.size)}, which is too large. A screenshot of the receipt works well.`
-      : `That file is ${kb(file.size)}. I can only take files under 4 MB.`);
+      : `That file is ${kb(file.size)}. I can only take files under ${MAX_MB} MB.`);
   }
 
   const sending = await downscale(file);
-  const type = sending.type || (/\.hei[cf]$/i.test(sending.name) ? 'image/heic' : '');
+  const type = typeOf(sending);
   if (!UPLOAD_KINDS[type]) return fail('I can only take a JPG, PNG, WEBP or HEIC photo, or a PDF.');
-  if (sending.size > MAX_UPLOAD) return fail(`That file is ${kb(sending.size)} — over the 4 MB limit.`);
+  if (sending.size > MAX_UPLOAD) return fail(`That file is ${kb(sending.size)} — over the ${MAX_MB} MB limit.`);
 
   status.textContent = `Uploading… ${kb(sending.size)}`;
   toEnd();
 
-  let res;
+  let sent;
   try {
-    res = await fetch('/api/drive-upload', {
-      method: 'POST',
-      // Encoded: a header can only carry Latin-1, and a file name often has more.
-      headers: { 'Content-Type': type, 'X-Filename': encodeURIComponent(sending.name) },
-      body: sending,
+    sent = await sendReceipt(sending, {
+      type,
+      // Only a big file reports progress — the small ones are over too fast.
+      onProgress: (p) => {
+        if (p < 1) status.textContent = `Uploading… ${kb(sending.size)} · ${Math.round(p * 100)}%`;
+      },
     });
-  } catch {
-    return fail('I could not reach the server, so the file was not uploaded.');
-  }
-  const data = await res.json().catch(() => ({}));
-  const fileId = String(data.id || '');
-  if (!res.ok || !data.ok || !fileId) {
+  } catch (err) {
     // fail() adds its own "choose the file again", so the server's is dropped.
-    return fail(String(data.error || '').replace(/\s*Please try again\.?\s*$/i, '') || 'The upload did not go through.');
+    return fail(String(err.message || '').replace(/\s*Please try again\.?\s*$/i, '') || 'The upload did not go through.');
   }
+  const fileId = sent.id;
 
   busy = false;
   status.remove();
-  state.file = { name: file.name, size: data.size ?? sending.size };
-  say(`Got it — your ${UPLOAD_KINDS[type]} receipt is uploaded.`);
+  state.file = { name: file.name, size: sent.size };
+  say(`Got it — your ${UPLOAD_KINDS[type].label} receipt is uploaded.`);
   accept(f, fileId);
 }
 
