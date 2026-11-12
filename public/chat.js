@@ -483,7 +483,7 @@ const PROMPTS = {
   age: 'How old are you, in years?',
   sex: 'What is your sex?',
   school_affiliation: 'Which school or Southville affiliation are you from?',
-  sisc_level: 'Which level are you in at SISC K12 and IB? Choose Parent if you are registering as a parent.',
+  sisc_level: 'Which level are you in at SISC K12 and IB?',
   race_category: 'Which race category are you joining?',
   shirt_size: 'What shirt size would you like? First, which fit?',
   team_or_organization: 'Are you running with a team or organization? Type its name, or skip this if you are running as an individual.',

@@ -120,8 +120,22 @@ test('grade level is asked of SISC K12 and IB runners only', () => {
   const k12 = { school_affiliation: 'SISC K12 and IB' };
   assert.match(validate(valid(k12)).join(' '), /Grade level/);
   assert.deepEqual(validate(valid({ ...k12, sisc_level: 'IB 1' })), []);
-  assert.deepEqual(validate(valid({ ...k12, sisc_level: 'Parent' })), []);
+  assert.deepEqual(validate(valid({ ...k12, sisc_level: 'Preschool to Grade 2' })), []);
+  assert.match(validate(valid({ ...k12, sisc_level: 'Parent' })).join(' '), /Grade level must be one of/);
   assert.match(validate(valid({ ...k12, sisc_level: 'Grade 13' })).join(' '), /Grade level must be one of/);
   // Everyone else is never asked, so a missing level is no error.
   assert.deepEqual(validate(valid({ school_affiliation: 'Alumni' })), []);
+});
+
+test('the FAQ data for search engines asks the same questions the page shows', async () => {
+  const { readFileSync } = await import('node:fs');
+  const page = readFileSync(new URL('../public/index.html', import.meta.url), 'utf8');
+  const shown = [...page.matchAll(/<summary>(.*?)<\/summary>/g)]
+    .map((m) => m[1].replace(/&amp;/g, '&'));
+  const blocks = [...page.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)]
+    .map((m) => JSON.parse(m[1]));
+  const faq = blocks.find((b) => b['@type'] === 'FAQPage');
+  assert.ok(faq, 'FAQPage data is missing');
+  assert.deepEqual(faq.mainEntity.map((q) => q.name), shown);
+  assert.ok(blocks.find((b) => b['@type'] === 'SportsEvent'), 'event data is missing');
 });

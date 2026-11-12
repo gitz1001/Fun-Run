@@ -1752,3 +1752,36 @@ a:hover{text-decoration:underline}
 input[type=text], input[type=email], input[type=tel], textarea, select { -webkit-user-select: auto !important; user-select: auto !important; pointer-events: auto !important; touch-action: manipulation; }
 
 #sections { padding-top: 8px; }
+
+/* ---------- FAQ ----------
+   Native <details>: the browser opens and closes them, keyboard and screen
+   reader included, with no script. Only the look is set here. */
+.faq-group{
+  margin:22px 0 6px;font-size:12.5px;font-weight:800;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--accent);
+}
+.faq-item{border-bottom:1px solid var(--line)}
+.faq-item summary{
+  list-style:none;cursor:pointer;position:relative;
+  padding:14px 30px 14px 0;font-weight:700;font-size:15px;line-height:1.4;color:var(--ink);
+}
+.faq-item summary::-webkit-details-marker{display:none}
+.faq-item summary::after{
+  content:"";position:absolute;right:6px;top:50%;width:8px;height:8px;margin-top:-6px;
+  border:solid var(--ink-2);border-width:0 2px 2px 0;transform:rotate(45deg);
+  transition:transform .15s ease;
+}
+.faq-item[open] summary::after{transform:rotate(-135deg);margin-top:-2px}
+.faq-item summary:hover{color:var(--accent)}
+.faq-item summary:focus-visible{outline:2px solid var(--accent-ring);outline-offset:2px;border-radius:4px}
+.faq-a{padding:0 0 16px;color:var(--ink-2);font-size:14.5px;line-height:1.6}
+.faq-a p{margin:0 0 8px}
+.faq-a p:last-child{margin-bottom:0}
+.faq-a ul{margin:4px 0 0;padding-left:20px}
+.faq-a li{margin:4px 0}
+.faq-a strong{color:var(--ink)}
+.faq-table{width:100%;border-collapse:collapse;font-size:14px;margin-top:2px}
+.faq-table th,.faq-table td{text-align:left;vertical-align:top;padding:8px 10px;border-bottom:1px solid var(--line)}
+.faq-table thead th{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-2);font-weight:800}
+.faq-table tbody th{font-weight:700;color:var(--ink);white-space:nowrap}
+@media (prefers-reduced-motion:reduce){.faq-item summary::after{transition:none}}
