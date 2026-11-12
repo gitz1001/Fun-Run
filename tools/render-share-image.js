@@ -1,7 +1,8 @@
 /**
- * Renders the link-preview card and the home-screen icon:
+ * Renders the site's generated images:
  *
  *   assets-src/share-image.html -> public/og/share.jpg        (1200 × 630)
+ *   assets-src/race-rates.html  -> public/race/race-categories-rates.png
  *   public/favicon.svg          -> public/apple-touch-icon.png (180 × 180)
  *
  *   node tools/render-share-image.js
@@ -35,6 +36,12 @@ try {
   mkdirSync(path.join(root, 'public/og'), { recursive: true });
   await page.screenshot({ path: path.join(root, 'public/og/share.jpg'), type: 'jpeg', quality: 86 });
 
+  // The fee table, at twice its layout size so it stays sharp on a phone.
+  const rates = await browser.newPage({ viewport: { width: 475, height: 400 }, deviceScaleFactor: 2 });
+  await rates.goto(`file://${path.join(root, 'assets-src/race-rates.html')}`);
+  await rates.evaluate(() => document.fonts.ready);
+  await rates.locator('body').screenshot({ path: path.join(root, 'public/race/race-categories-rates.png') });
+
   const svg = readFileSync(path.join(root, 'public/favicon.svg'), 'utf8');
   const icon = await browser.newPage({ viewport: { width: 180, height: 180 }, deviceScaleFactor: 1 });
   // iOS rounds the corners itself and fills transparency with black, so the
@@ -42,7 +49,7 @@ try {
   await icon.setContent(`<body style="margin:0">${svg
     .replace('<svg', '<svg width="180" height="180"').replace(/ rx="\d+"/, '')}</body>`);
   await icon.screenshot({ path: path.join(root, 'public/apple-touch-icon.png'), type: 'png' });
-  console.log('wrote public/og/share.jpg and public/apple-touch-icon.png');
+  console.log('wrote public/og/share.jpg, public/race/race-categories-rates.png and public/apple-touch-icon.png');
 } finally {
   await browser.close();
 }

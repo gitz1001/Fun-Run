@@ -1784,4 +1784,5 @@ input[type=text], input[type=email], input[type=tel], textarea, select { -webkit
 .faq-table th,.faq-table td{text-align:left;vertical-align:top;padding:8px 10px;border-bottom:1px solid var(--line)}
 .faq-table thead th{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-2);font-weight:800}
 .faq-table tbody th{font-weight:700;color:var(--ink);white-space:nowrap}
+.faq-sub{display:block;font-weight:500;font-size:12.5px;color:var(--ink-2);white-space:normal}
 @media (prefers-reduced-motion:reduce){.faq-item summary::after{transition:none}}

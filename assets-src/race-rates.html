@@ -1,0 +1,38 @@
+<!doctype html>
+<!--
+  The race categories and fees table shown on the page and in the chat.
+  Rendered to public/race/race-categories-rates.png by:
+    node tools/render-share-image.js
+  Keep the fees in step with public/index.html (the fee list, the FAQ and the
+  event data in the <head>) and with assets-src/share-image.html.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+@font-face{font-family:"Archivo";font-weight:400 900;font-stretch:62% 125%;
+  src:url("../public/fonts/archivo-latin.woff2") format("woff2")}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:475px;background:#fff}
+body{font-family:"Archivo",system-ui,sans-serif;padding:6px}
+table{width:100%;table-layout:fixed;border-collapse:collapse;border:3px solid #111}
+th,td{border:2px solid #111;text-align:center;vertical-align:middle}
+thead th{background:#5b2d7c;color:#fff;font-weight:900;font-stretch:100%;font-size:25px;
+  line-height:1.05;letter-spacing:.01em;text-transform:uppercase;padding:14px 8px;height:118px}
+tbody th{font-weight:900;font-stretch:108%;font-size:27px;color:#111;padding:10px 8px;height:98px;width:46%}
+tbody th small{display:block;font-weight:700;font-stretch:100%;font-size:16px;line-height:1.15;color:#5b2d7c;margin-top:4px}
+tbody td{font-weight:400;font-size:27px;color:#111;padding:10px 8px}
+</style>
+</head>
+<body>
+<table>
+  <thead><tr><th>Distance</th><th>Registration<br>Fee</th></tr></thead>
+  <tbody>
+    <tr><th>1KM Walk<small>open to all · toddlers welcome</small></th><td>Php 850.00</td></tr>
+    <tr><th>3KM</th><td>Php 950.00</td></tr>
+    <tr><th>5KM</th><td>Php 1,050.00</td></tr>
+    <tr><th>10KM</th><td>Php 1,150.00</td></tr>
+  </tbody>
+</table>
+</body>
+</html>
