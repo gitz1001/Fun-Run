@@ -1,10 +1,11 @@
 <!doctype html>
-<html lang="en">
+<!-- class="reg-closed": registration is closed (see lib/registration.js for reopening). -->
+<html lang="en" class="reg-closed">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>Register by chat · Southville Run For A Cause 2026</title>
+<title>Registration closed · Southville Run For A Cause 2026</title>
 <meta name="description" content="Register for the Southville Run For A Cause 2026 by answering one question at a time.">
 <!-- Kept out of search results: the registration page is the one to find,
      and it offers this assistant from its own button. -->
@@ -37,7 +38,13 @@
 </header>
 
 <main class="wrap">
-  <section class="cb-intro">
+  <section class="cb-intro when-closed">
+    <h1 class="cb-intro-h">Registration is closed</h1>
+    <p>Online registration for the Southville Run For A Cause 2026 has ended, and no late or walk-in registrations will be accepted. Thank you for your support!</p>
+    <p>Already registered? Claim your race kit on <strong>Nov 25–27, 8 AM – 5 PM</strong> at the Tropical Building, Gate 13, Southville International School and Colleges.</p>
+    <a class="btn cb-intro-btn" href="/#claiming">See race kit claiming &amp; race-day info</a>
+  </section>
+  <section class="cb-intro when-open">
     <h1 class="cb-intro-h">Register by chat</h1>
     <p>
       Our registration assistant asks for your details one question at a time —
@@ -65,6 +72,7 @@
   <p>Southville for Others (SFO) &amp; Alumni Affairs · Southville International School and Colleges</p>
 </footer>
 
+<script src="/closed.js" type="module"></script>
 <script src="/chat.js" type="module"></script>
 </body>
 </html>

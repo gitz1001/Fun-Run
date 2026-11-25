@@ -9,6 +9,7 @@ import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 
 process.env.DATABASE_URL = 'postgres://stand-in';
+process.env.REGISTRATION_OPEN = 'true';
 process.env.GOOGLE_DRIVE_FOLDER_ID = 'FOLDER_ID_0123456789abcdefghij';
 process.env.SITE_URL = 'https://run.example';
 for (const k of ['GMAIL_USER', 'SMTP_PASSWORD', 'SHEET_ID', 'VERCEL']) delete process.env[k];
@@ -325,4 +326,29 @@ test('the page a registration came from is recorded, and only a known one is bel
   assert.equal(form.source, 'form');
   assert.equal(form.answers['Registered via'], 'Registration form');
   assert.equal(odd.source, 'form');
+});
+
+test('a closed registration refuses submissions and uploads, and records nothing', async () => {
+  const { default: upload } = await import('../api/drive-upload.js');
+  const { default: session } = await import('../api/upload-session.js');
+  process.env.REGISTRATION_OPEN = 'false';
+  try {
+    const out = await submit(answers());
+    assert.equal(out.status, 403);
+    assert.equal(out.json.closed, true);
+    assert.equal(db.state.registrations.length, 0);
+    for (const handler of [upload, session]) {
+      const got = { status: 0, json: null };
+      const res = { setHeader() {}, status(c) { got.status = c; return this; }, json(o) { got.json = o; return this; } };
+      await handler({ method: 'POST', headers: { 'content-type': 'application/pdf' }, body: { action: 'start' } }, res);
+      assert.equal(got.status, 403);
+    }
+    assert.deepEqual(network, []);
+  } finally {
+    process.env.REGISTRATION_OPEN = 'true';
+  }
+  // Unset is closed too: a missing setting must never reopen the event.
+  delete process.env.REGISTRATION_OPEN;
+  try { assert.equal((await submit(answers())).status, 403); }
+  finally { process.env.REGISTRATION_OPEN = 'true'; }
 });

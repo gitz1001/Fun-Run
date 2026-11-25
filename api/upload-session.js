@@ -1,3 +1,4 @@
+import { refuseIfClosed } from '../lib/registration.js';
 import {
   driveConfigured, startResumableUpload, getDriveFileInfo, readDriveHead, deleteDriveFile,
 } from '../lib/google-drive.js';
@@ -130,6 +131,8 @@ export default async function handler(req, res) {
     return res.status(405).json({ ok: false, error: 'POST only' });
   }
   res.setHeader('Cache-Control', 'no-store');
+
+  if (refuseIfClosed(req, res)) return;
 
   if (!driveConfigured() || !dbConfigured()) {
     return res.status(503).json({ ok: false, error: 'File uploads are not set up yet. Please contact the organisers.' });

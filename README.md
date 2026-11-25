@@ -28,6 +28,20 @@ courtesy, so an outage in either never loses a registration.
 
 ---
 
+## Registration open / closed
+
+**Registration is closed** (since November 25, 2026). The site is an
+information page: the closed notice, race kit claiming and race-day details
+show, and every way into registering opens a "Registration is closed" notice.
+
+* Server: `lib/registration.js` refuses `/api/register` and both upload
+  endpoints unless `REGISTRATION_OPEN=true` is set. Unset means closed.
+* Page: `class="reg-closed"` on `<html>` in `public/index.html` and
+  `public/chat.html` switches the page; `public/closed.js` shows the notice.
+
+To reopen: set `REGISTRATION_OPEN=true` in Vercel, remove `class="reg-closed"`
+from both pages, and redeploy. The staff dashboard works either way.
+
 ## Setup
 
 ### 1. Google Cloud OAuth client

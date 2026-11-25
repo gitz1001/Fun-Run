@@ -1,3 +1,4 @@
+import { refuseIfClosed } from '../lib/registration.js';
 import { randomBytes } from 'node:crypto';
 import {
   FORM, validate, isActive, cleanAnswer, AGREEMENT, PRIVACY, waiverState, privacyState,
@@ -26,6 +27,8 @@ export default async function handler(req, res) {
     res.setHeader('Allow', 'POST');
     return res.status(405).json({ ok: false, error: 'POST only' });
   }
+
+  if (refuseIfClosed(req, res)) return;
 
   const ip = clientIp(req);
   if (await limited('register', ip, SUBMISSIONS)) {

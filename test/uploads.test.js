@@ -9,6 +9,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 process.env.DATABASE_URL = 'postgres://stand-in';
+process.env.REGISTRATION_OPEN = 'true';
 process.env.GOOGLE_DRIVE_FOLDER_ID = 'FOLDER_ID_0123456789abcdefghij';
 Object.assign(process.env, { GOOGLE_CLIENT_ID: 'id', GOOGLE_CLIENT_SECRET: 'secret', GOOGLE_REFRESH_TOKEN: 'token' });
 

@@ -1786,3 +1786,79 @@ input[type=text], input[type=email], input[type=tel], textarea, select { -webkit
 .faq-table tbody th{font-weight:700;color:var(--ink);white-space:nowrap}
 .faq-sub{display:block;font-weight:500;font-size:12.5px;color:var(--ink-2);white-space:normal}
 @media (prefers-reduced-motion:reduce){.faq-item summary::after{transition:none}}
+
+/* ---------- registration open / closed ----------
+   <html class="reg-closed"> switches the page into its information-only
+   mode: the consent steps, the way into the form and the chat launcher go,
+   and the closed notice, race kit claiming and race-day cards appear. */
+html:not(.reg-closed) .when-closed{display:none !important}
+html.reg-closed .when-open,
+html.reg-closed .backup-link,
+html.reg-closed #intro-notice,
+html.reg-closed .cb-launch,
+html.reg-closed #view-form{display:none !important}
+
+.closed-status{
+  margin:22px 0 6px;padding:20px 20px 18px;border-radius:14px;
+  background:var(--accent-soft);border:1px solid var(--accent-ring);
+}
+.closed-status h2{margin:10px 0 8px;font:400 25px/1.2 var(--font-display);color:var(--ink)}
+.closed-status p{margin:0 0 8px;color:var(--ink-2);font-size:15px;line-height:1.6}
+.closed-status p:last-child{margin-bottom:0}
+.closed-status strong{color:var(--ink)}
+.closed-badge{
+  display:inline-block;padding:5px 12px;border-radius:99px;
+  background:var(--accent);color:var(--accent-ink);
+  font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;
+}
+.closed-announce a,.claim-link,.claim-courier a{color:var(--accent);font-weight:700}
+
+.claim-facts{list-style:none;margin:10px 0 0;padding:0}
+.claim-facts li{display:grid;grid-template-columns:84px 1fr;gap:12px;padding:11px 0;border-bottom:1px solid var(--line)}
+.claim-facts li:last-child{border-bottom:0}
+.claim-k{font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);padding-top:2px}
+.claim-v{font-size:15px;line-height:1.5;color:var(--ink-2)}
+.claim-v strong{color:var(--ink)}
+
+.claim-batches{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0}
+.claim-batch{border:1px solid var(--line);border-radius:12px;padding:12px 14px;background:var(--card)}
+.claim-batch p{margin:8px 0 0;font-size:14.5px;line-height:1.5;color:var(--ink-2)}
+.claim-batch strong{color:var(--ink)}
+.claim-tag{font-size:11.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--accent)}
+.claim-courier{font-size:14.5px;line-height:1.6;color:var(--ink-2);padding:12px 14px;border-radius:12px;background:var(--accent-soft)}
+.claim-courier strong{color:var(--ink)}
+.claim-courier a{white-space:nowrap}
+.claim-actions{display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px;margin:16px 0 4px}
+.claim-btn{width:auto;text-decoration:none;padding:12px 20px;font-size:15px}
+.claim-posters{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.claim-posters a{display:block;border-radius:12px;overflow:hidden;border:1px solid var(--line)}
+.claim-posters img{display:block;width:100%;height:auto}
+.claim-note{margin:8px 0 0;font-size:13px;color:var(--ink-2)}
+/* The welcome card is pulled up over the hero; on the closed page it
+   follows these cards instead, so leave it room. */
+html.reg-closed .welcome{margin-top:28px}
+.cb-intro a.btn{text-decoration:none}
+@media (max-width:520px){
+  .claim-batches{grid-template-columns:1fr}
+  .claim-facts li{grid-template-columns:72px 1fr}
+}
+
+.btn.btn-closed{background:var(--line-2);color:var(--ink);cursor:pointer}
+.btn.btn-closed:hover{background:var(--line-2);transform:none}
+.btn.btn-closed span::before{content:"🔒 "}
+
+/* The pop-up a closed way in opens. */
+.rc-dialog{
+  border:0;border-radius:18px;padding:0;max-width:440px;width:calc(100% - 32px);
+  background:var(--card);color:var(--ink);box-shadow:0 24px 70px rgba(0,0,0,.35);
+}
+.rc-dialog::backdrop{background:rgba(20,10,30,.55)}
+.rc-card{padding:26px 22px 20px;text-align:center}
+.rc-icon{font-size:34px;line-height:1}
+.rc-card h2{margin:10px 0 8px;font:400 26px/1.2 var(--font-display)}
+.rc-card p{margin:0 0 10px;color:var(--ink-2);font-size:15px;line-height:1.55}
+.rc-card strong{color:var(--ink)}
+.rc-card a{color:var(--accent);font-weight:700}
+.rc-actions{display:flex;flex-direction:column;gap:10px;margin-top:16px}
+.rc-actions .btn,.rc-card a.btn{text-decoration:none;color:var(--accent-ink)}
+.rc-close{background:none;border:0;color:var(--ink-2);font:600 15px var(--font);padding:8px;cursor:pointer;text-decoration:underline}

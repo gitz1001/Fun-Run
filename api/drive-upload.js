@@ -1,3 +1,4 @@
+import { refuseIfClosed } from '../lib/registration.js';
 import { uploadToDrive, deleteDriveFile, driveConfigured } from '../lib/google-drive.js';
 import { dbConfigured, ensureSchema, recordUpload } from '../lib/db.js';
 import { limited, clientIp } from '../lib/rate-limit.js';
@@ -30,6 +31,8 @@ export default async function handler(req, res) {
     return res.status(405).json({ ok: false, error: 'POST only' });
   }
   res.setHeader('Cache-Control', 'no-store');
+
+  if (refuseIfClosed(req, res)) return;
 
   const ip = clientIp(req);
   if (await limited('upload', ip, UPLOAD_LIMIT)) {
